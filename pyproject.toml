@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "private-assistant-commons"
+version = "0.1.0"
+description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
+authors = ["stkr22 <stkr22@github.com>"]
+readme = "README.md"
+license = "GNU GPLv3"
+include = ["src"]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.12"
+pyyaml = "^6.0.1"
+paho-mqtt = "^2.0.0"
+pydantic = "^2.7.0"
+spacy = "^3.7.4"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.1.11"
+mypy = "^1.9.0"
+pytest = "^7.4.4"
+types-pyyaml = "^6.0.12.20240311"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+indent-width = 4
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+ignore = ["E203"]
