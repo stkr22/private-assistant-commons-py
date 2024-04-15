@@ -2,11 +2,8 @@ name: Python Build Package
 
 on:
   push:
-
     tags:
-      - '*'
-
-  pull_request:
+      - 'v*'
 
 env:
   PYTHON_VERSION: '3.11'
@@ -14,6 +11,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,8 +33,5 @@ jobs:
       - name: Build Package
         run: poetry build
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: package
-          path: dist/*.whl
+      - name: Publish package distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
