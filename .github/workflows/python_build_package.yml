@@ -1,0 +1,41 @@
+name: Python Build Package
+
+on:
+  push:
+
+    tags:
+      - '*'
+
+  pull_request:
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies with Poetry
+        run: |
+          poetry config virtualenvs.create false
+          poetry install
+
+      - name: Build Package
+        run: poetry build
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: dist/*.whl
