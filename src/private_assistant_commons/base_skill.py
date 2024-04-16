@@ -89,13 +89,13 @@ class BaseSkill:
     def handle_feedback_message(self, payload: str) -> None:
         try:
             message_id = uuid.UUID(payload)
-            client_request = self.client_requests.get(message_id)
-            if client_request is not None:
-                self.process_request(client_request)
-            else:
-                logger.error("No client request for UUID %s was found.", message_id)
         except ValueError:
             logger.error("Feedback message_id is not a UUID.")
+        client_request = self.client_requests.get(message_id)
+        if client_request is not None:
+            self.process_request(client_request)
+        else:
+            logger.error("No client request for UUID %s was found.", message_id)
 
     def add_text_to_output_topic(
         self, response_text: str, client_request: messages.ClientRequest
