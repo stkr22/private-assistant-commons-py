@@ -70,9 +70,7 @@ class BaseSkill:
         try:
             client_request = messages.ClientRequest.model_validate_json(payload)
             self.client_requests[client_request.id] = client_request
-            certainty = self.calculate_certainty(
-                self.nlp_model(text=client_request.text)
-            )
+            certainty = self.calculate_certainty(self.nlp_model(text=client_request.text))
             certainty_message = messages.SkillCertainty(
                 message_id=client_request.id,
                 certainty=certainty,
@@ -97,9 +95,7 @@ class BaseSkill:
         else:
             logger.error("No client request for UUID %s was found.", message_id)
 
-    def add_text_to_output_topic(
-        self, response_text: str, client_request: messages.ClientRequest
-    ) -> None:
+    def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
         self.mqtt_client.publish(client_request.output_topic, response_text, qos=2)
 
     def process_request(self, client_request: messages.ClientRequest) -> None:
@@ -116,9 +112,7 @@ class BaseSkill:
                 registration_message.model_dump_json(),
                 qos=1,
             )
-            self.registration_timer = threading.Timer(
-                self.config_obj.registration_interval, self.register_skill
-            )
+            self.registration_timer = threading.Timer(self.config_obj.registration_interval, self.register_skill)
             self.registration_timer.daemon = True
             self.registration_timer.start()
 
@@ -127,9 +121,7 @@ class BaseSkill:
 
     def run(self):
         try:
-            self.mqtt_client.connect(
-                self.config_obj.mqtt_server_host, self.config_obj.mqtt_server_port, 60
-            )
+            self.mqtt_client.connect(self.config_obj.mqtt_server_host, self.config_obj.mqtt_server_port, 60)
             self.register_skill()
             self.mqtt_client.loop_forever()
         finally:
