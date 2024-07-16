@@ -1,10 +1,36 @@
 import logging
+import os
 from pathlib import Path
+from typing import Self, TypeVar
 
 import yaml
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+class PostgresConfig(BaseModel):
+    user: str = Field(default="postgres", description="Database user")
+    password: str = Field(default="postgres", description="Database password")
+    host: str = Field(default="localhost", description="Database host")
+    port: int = Field(default=5432, description="Database port")
+    database: str = Field(default="postgres", description="Database name")
+
+    @property
+    def connection_string(self) -> str:
+        return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    @classmethod
+    def from_env(cls) -> Self:
+        return cls.model_validate(
+            {
+                "user": os.getenv("POSTGRES_USER", "postgres"),
+                "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
+                "host": os.getenv("POSTGRES_HOST", "localhost"),
+                "port": int(os.getenv("POSTGRES_PORT", 5432)),
+                "database": os.getenv("POSTGRES_DB", "postgres"),
+            }
+        )
 
 
 class SkillConfig(BaseModel):
@@ -23,7 +49,19 @@ class SkillConfig(BaseModel):
         return f"{self.base_topic}/{self.client_id}/feedback"
 
 
+T = TypeVar("T", bound=SkillConfig)
+
+
 def combine_yaml_files(file_paths: list[Path]) -> dict:
+    """
+    Combine multiple YAML files into a single dictionary.
+
+    Args:
+        file_paths (list[Path]): List of paths to YAML files.
+
+    Returns:
+        dict: Combined dictionary from all YAML files.
+    """
     combined_data = {}
     for file_path in file_paths:
         with file_path.open("r") as file:
@@ -32,7 +70,21 @@ def combine_yaml_files(file_paths: list[Path]) -> dict:
     return combined_data
 
 
-def load_config(config_path: str | Path) -> SkillConfig:
+def load_config(config_path: str | Path, config_class: type[T]) -> T:
+    """
+    Load and validate configuration from YAML files.
+
+    Args:
+        config_path (Union[str, Path]): Path to a YAML file or a directory containing YAML files.
+        config_class (Type[T]): The Pydantic model class to validate the combined data against.
+
+    Returns:
+        T: An instance of the provided Pydantic model class.
+
+    Raises:
+        FileNotFoundError: If no YAML files are found.
+        ValidationError: If the combined data does not conform to the Pydantic model.
+    """
     config_path = Path(config_path)
 
     if config_path.is_dir():
@@ -47,7 +99,7 @@ def load_config(config_path: str | Path) -> SkillConfig:
 
     try:
         combined_data = combine_yaml_files(yaml_files)
-        return SkillConfig.model_validate(combined_data)
+        return config_class.model_validate(combined_data)
     except FileNotFoundError as err:
         logger.error("Config file not found: %s", config_path)
         raise err
