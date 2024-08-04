@@ -1,0 +1,12 @@
+# Changes here will be overwritten by Copier
+_commit: 0.1.2
+_src_path: gh:stkr22/copier-python-project
+author_email: stkr22@github.com
+author_full_name: stkr22
+copyright_license: GNU General Public License v3.0
+project_description: Common utilities and base functionalities for all skills in the
+    Private Assistant ecosystem.
+project_name: Private Assistant Commons
+python_package_distribution_name: private-assistant-commons
+python_package_import_name: private_assistant_commons
+version: 0.1.4

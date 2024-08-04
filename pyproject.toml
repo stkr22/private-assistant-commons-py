@@ -1,26 +1,23 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
 [tool.poetry]
 name = "private-assistant-commons"
 version = "0.1.4"
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
 authors = ["stkr22 <stkr22@github.com>"]
 readme = "README.md"
-license = "GNU GPLv3"
+license = "GNU General Public License v3.0"
+include = ["src"]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.12"
-pyyaml = "^6.0.1"
-paho-mqtt = "^2.0.0"
-pydantic = "^2.8.2"
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.5.6"
-mypy = "^1.11.1"
-pytest = "^8.3.2"
-types-pyyaml = "^6.0.12.20240311"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+ruff = "^0.4.9"
+mypy = "^1.10.0"
+pytest = "^8.2.2"
 
 [tool.ruff]
 target-version = "py311"
