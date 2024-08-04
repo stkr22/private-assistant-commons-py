@@ -49,7 +49,7 @@ class SkillConfig(BaseModel):
         return f"{self.base_topic}/{self.client_id}/feedback"
 
 
-T = TypeVar("T", bound=SkillConfig)
+T = TypeVar("T", bound=BaseModel)
 
 
 def combine_yaml_files(file_paths: list[Path]) -> dict:

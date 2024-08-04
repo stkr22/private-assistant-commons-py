@@ -19,3 +19,16 @@ class ClientRequest(BaseModel):
     text: str
     room: str
     output_topic: str
+
+
+class NumberAnalysisResult(BaseModel):
+    number_token: int
+    previous_token: str | None = None
+    next_token: str | None = None
+
+
+class IntentAnalysisResult(BaseModel):
+    client_request: ClientRequest
+    numbers: list[NumberAnalysisResult]
+    nouns: list[str]
+    verbs: list[str]
