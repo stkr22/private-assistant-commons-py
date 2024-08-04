@@ -4,7 +4,6 @@ import uuid
 from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
-import spacy
 from pydantic import ValidationError
 
 from private_assistant_commons import messages, skill_config
@@ -17,12 +16,10 @@ class BaseSkill:
         self,
         config_obj: skill_config.SkillConfig,
         mqtt_client: mqtt.Client,
-        nlp_model: spacy.language.Language,
     ) -> None:
         self.config_obj: skill_config.SkillConfig = config_obj
         mqtt_client.on_connect, mqtt_client.on_message = self.get_mqtt_functions()
         self.mqtt_client: mqtt.Client = mqtt_client
-        self.nlp_model: spacy.language.Language = nlp_model
         self.lock: threading.RLock = threading.RLock()
         self.intent_analysis_results: dict[uuid.UUID, messages.IntentAnalysisResult] = {}
 

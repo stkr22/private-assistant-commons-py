@@ -10,13 +10,12 @@ license = "GNU GPLv3"
 python = ">=3.11,<3.12"
 pyyaml = "^6.0.1"
 paho-mqtt = "^2.0.0"
-pydantic = "^2.7.0"
-spacy = "^3.7.4"
+pydantic = "^2.8.2"
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.5.1"
-mypy = "^1.9.0"
-pytest = "^8.2.2"
+ruff = "^0.5.6"
+mypy = "^1.11.1"
+pytest = "^8.3.2"
 types-pyyaml = "^6.0.12.20240311"
 
 [build-system]
