@@ -1,11 +1,9 @@
 import logging
-import re
 import threading
 import uuid
 from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
-import spacy
 from pydantic import ValidationError
 
 from private_assistant_commons import messages, skill_config
@@ -18,28 +16,12 @@ class BaseSkill:
         self,
         config_obj: skill_config.SkillConfig,
         mqtt_client: mqtt.Client,
-        nlp_model: spacy.language.Language,
     ) -> None:
         self.config_obj: skill_config.SkillConfig = config_obj
-        self.client_request_pattern: re.Pattern = self.mqtt_pattern_to_regex(
-            self.config_obj.client_request_subscription
-        )
         mqtt_client.on_connect, mqtt_client.on_message = self.get_mqtt_functions()
         self.mqtt_client: mqtt.Client = mqtt_client
-        self.nlp_model: spacy.language.Language = nlp_model
         self.lock: threading.RLock = threading.RLock()
-        self.client_requests: dict[uuid.UUID, messages.ClientRequest] = {}
-
-    @staticmethod
-    def mqtt_pattern_to_regex(pattern: str) -> re.Pattern:
-        """
-        Converts MQTT topic pattern with wildcards to a regular expression.
-        - '+' wildcard is replaced to match any string in a single topic level.
-        - '#' wildcard is replaced to match any strings at multiple topic levels.
-        """
-        pattern = re.escape(pattern)
-        pattern = pattern.replace(r"\+", r"[^/]+").replace(r"\#", r".*")
-        return re.compile(f"^{pattern}$")
+        self.intent_analysis_results: dict[uuid.UUID, messages.IntentAnalysisResult] = {}
 
     def get_mqtt_functions(self) -> tuple[Callable, Callable]:
         def on_connect(mqtt_client: mqtt.Client, user_data, flags, rc: int, properties):
@@ -48,7 +30,7 @@ class BaseSkill:
                 [
                     (self.config_obj.feedback_topic, mqtt.SubscribeOptions(qos=1)),
                     (
-                        self.config_obj.client_request_subscription,
+                        self.config_obj.intent_analysis_result_topic,
                         mqtt.SubscribeOptions(qos=1),
                     ),
                 ]
@@ -58,21 +40,21 @@ class BaseSkill:
             logger.debug("Received message %s", msg)
             if msg.topic == self.config_obj.feedback_topic:
                 self.handle_feedback_message(msg.payload.decode("utf-8"))
-            elif self.client_request_pattern.match(msg.topic):
+            elif msg.topic == self.config_obj.intent_analysis_result_topic:
                 self.handle_client_request_message(msg.payload.decode("utf-8"))
 
         return on_connect, on_message
 
-    def calculate_certainty(self, doc: spacy.language.Doc) -> float:
+    def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
         raise NotImplementedError
 
     def handle_client_request_message(self, payload: str) -> None:
         try:
-            client_request = messages.ClientRequest.model_validate_json(payload)
-            self.client_requests[client_request.id] = client_request
-            certainty = self.calculate_certainty(self.nlp_model(text=client_request.text))
+            intent_analysis_result = messages.IntentAnalysisResult.model_validate_json(payload)
+            self.intent_analysis_results[intent_analysis_result.id] = intent_analysis_result
+            certainty = self.calculate_certainty(intent_analysis_result)
             certainty_message = messages.SkillCertainty(
-                message_id=client_request.id,
+                message_id=intent_analysis_result.id,
                 certainty=certainty,
                 skill_id=self.config_obj.client_id,
             )
@@ -89,16 +71,16 @@ class BaseSkill:
             message_id = uuid.UUID(payload)
         except ValueError:
             logger.error("Feedback message_id is not a UUID.")
-        client_request = self.client_requests.get(message_id)
-        if client_request is not None:
-            self.process_request(client_request)
+        intent_analysis_result = self.intent_analysis_results.get(message_id)
+        if intent_analysis_result is not None:
+            self.process_request(intent_analysis_result)
         else:
-            logger.error("No client request for UUID %s was found.", message_id)
+            logger.error("No intent analysis result for UUID %s was found.", message_id)
 
     def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
         self.mqtt_client.publish(client_request.output_topic, response_text, qos=2)
 
-    def process_request(self, client_request: messages.ClientRequest) -> None:
+    def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
         raise NotImplementedError
 
     def register_skill(self):

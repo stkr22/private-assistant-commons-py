@@ -1,10 +1,12 @@
 from .base_skill import BaseSkill
-from .messages import ClientRequest, SkillCertainty, SkillRegistration
+from .messages import ClientRequest, IntentAnalysisResult, NumberAnalysisResult, SkillCertainty, SkillRegistration
 from .skill_config import SkillConfig
 
 __all__ = [
     "BaseSkill",
     "ClientRequest",
+    "IntentAnalysisResult",
+    "NumberAnalysisResult",
     "SkillCertainty",
     "SkillRegistration",
     "SkillConfig",

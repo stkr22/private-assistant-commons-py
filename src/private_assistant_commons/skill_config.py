@@ -41,7 +41,7 @@ class SkillConfig(BaseModel):
     certainty_topic: str = "assistant/coordinator/certainty"
     register_topic: str = "assistant/coordinator/register"
     registration_interval: float = 500.0
-    client_request_subscription: str = "assistant/+/+/input"
+    intent_analysis_result_topic: str = "assistant/intent_engine/result"
     spacy_model: str = "en_core_web_md"
 
     @property
@@ -49,7 +49,7 @@ class SkillConfig(BaseModel):
         return f"{self.base_topic}/{self.client_id}/feedback"
 
 
-T = TypeVar("T", bound=SkillConfig)
+T = TypeVar("T", bound=BaseModel)
 
 
 def combine_yaml_files(file_paths: list[Path]) -> dict:
