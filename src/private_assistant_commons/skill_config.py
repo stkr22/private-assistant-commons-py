@@ -42,7 +42,6 @@ class SkillConfig(BaseModel):
     register_topic: str = "assistant/coordinator/register"
     registration_interval: float = 500.0
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
-    spacy_model: str = "en_core_web_md"
 
     @property
     def feedback_topic(self) -> str:
