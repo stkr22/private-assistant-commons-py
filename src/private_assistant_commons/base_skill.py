@@ -1,17 +1,18 @@
-import logging
 import threading
 import uuid
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 
 import paho.mqtt.client as mqtt
 from pydantic import ValidationError
 
 from private_assistant_commons import messages, skill_config
+from private_assistant_commons.skill_logger import SkillLogger
 
-logger = logging.getLogger(__name__)
+logger = SkillLogger.get_logger(__name__)
 
 
-class BaseSkill:
+class BaseSkill(ABC):
     def __init__(
         self,
         config_obj: skill_config.SkillConfig,
@@ -25,7 +26,10 @@ class BaseSkill:
 
     def get_mqtt_functions(self) -> tuple[Callable, Callable]:
         def on_connect(mqtt_client: mqtt.Client, user_data, flags, rc: int, properties):
-            logger.info("Connected with result code %s", rc)
+            if rc == 0:
+                logger.info("Connected successfully with result code %s", rc)
+            else:
+                logger.error("Failed to connect, return code %d", rc)
             mqtt_client.subscribe(
                 [
                     (self.config_obj.feedback_topic, mqtt.SubscribeOptions(qos=1)),
@@ -37,7 +41,7 @@ class BaseSkill:
             )
 
         def on_message(mqtt_client: mqtt.Client, user_data, msg: mqtt.MQTTMessage):
-            logger.debug("Received message %s", msg)
+            logger.debug("Received message on topic %s: %s", msg.topic, msg.payload.decode("utf-8"))
             if msg.topic == self.config_obj.feedback_topic:
                 self.handle_feedback_message(msg.payload.decode("utf-8"))
             elif msg.topic == self.config_obj.intent_analysis_result_topic:
@@ -45,8 +49,9 @@ class BaseSkill:
 
         return on_connect, on_message
 
+    @abstractmethod
     def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
-        raise NotImplementedError
+        pass
 
     def handle_client_request_message(self, payload: str) -> None:
         try:
@@ -70,7 +75,8 @@ class BaseSkill:
         try:
             message_id = uuid.UUID(payload)
         except ValueError:
-            logger.error("Feedback message_id is not a UUID.")
+            logger.error("Feedback message_id is not a UUID: %s", payload)
+            return
         intent_analysis_result = self.intent_analysis_results.get(message_id)
         if intent_analysis_result is not None:
             self.process_request(intent_analysis_result)
@@ -83,10 +89,11 @@ class BaseSkill:
     def broadcast_text(self, response_text: str) -> None:
         self.mqtt_client.publish(self.config_obj.broadcast_topic, response_text, qos=1)
 
+    @abstractmethod
     def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
-        raise NotImplementedError
+        pass
 
-    def register_skill(self):
+    def register_skill(self) -> None:
         with self.lock:
             registration_message = messages.SkillRegistration(
                 skill_id=self.config_obj.client_id,
@@ -98,13 +105,15 @@ class BaseSkill:
                 qos=1,
             )
             self.registration_timer = threading.Timer(self.config_obj.registration_interval, self.register_skill)
-            self.registration_timer.daemon = True
+            self.registration_timer.daemon = True  # Keeping it daemon, as it's safe for this context
             self.registration_timer.start()
 
-    def shutdown(self):
+    def shutdown(self) -> None:
+        if hasattr(self, "registration_timer"):
+            self.registration_timer.cancel()  # Ensure the timer is cancelled on shutdown
         self.mqtt_client.disconnect()
 
-    def run(self):
+    def run(self) -> None:
         try:
             self.mqtt_client.connect(self.config_obj.mqtt_server_host, self.config_obj.mqtt_server_port, 60)
             self.register_skill()
