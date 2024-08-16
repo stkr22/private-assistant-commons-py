@@ -42,6 +42,7 @@ class SkillConfig(BaseModel):
     register_topic: str = "assistant/coordinator/register"
     registration_interval: float = 500.0
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
+    broadcast_topic: str = "assistant/comms_bridge/broadcast"
 
     @property
     def feedback_topic(self) -> str:
