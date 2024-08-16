@@ -80,6 +80,9 @@ class BaseSkill:
     def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
         self.mqtt_client.publish(client_request.output_topic, response_text, qos=2)
 
+    def broadcast_text(self, response_text: str) -> None:
+        self.mqtt_client.publish(self.config_obj.broadcast_topic, response_text, qos=1)
+
     def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
         raise NotImplementedError
 
