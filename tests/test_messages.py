@@ -5,26 +5,8 @@ from private_assistant_commons import (  # Replace 'your_module' with the actual
     ClientRequest,
     IntentAnalysisResult,
     NumberAnalysisResult,
-    SkillCertainty,
-    SkillRegistration,
 )
 from pydantic import ValidationError
-
-
-def test_skill_certainty():
-    message_id = uuid.uuid4()
-    skill_certainty = SkillCertainty(message_id=message_id, certainty=0.95, skill_id="skill_1")
-
-    assert skill_certainty.message_id == message_id
-    assert skill_certainty.certainty == 0.95
-    assert skill_certainty.skill_id == "skill_1"
-
-
-def test_skill_registration():
-    skill_registration = SkillRegistration(skill_id="skill_1", feedback_topic="topic/feedback")
-
-    assert skill_registration.skill_id == "skill_1"
-    assert skill_registration.feedback_topic == "topic/feedback"
 
 
 def test_client_request():
@@ -71,16 +53,6 @@ def test_intent_analysis_result():
     assert intent_analysis_result.numbers == [number_analysis_result]
     assert intent_analysis_result.nouns == ["lights", "living_room"]
     assert intent_analysis_result.verbs == ["turn", "on"]
-
-
-def test_invalid_skill_certainty():
-    with pytest.raises(ValidationError):
-        SkillCertainty(message_id="invalid_uuid", certainty="high", skill_id=123)
-
-
-def test_invalid_skill_registration():
-    with pytest.raises(ValidationError):
-        SkillRegistration(skill_id=123, feedback_topic=456)
 
 
 def test_invalid_client_request():
