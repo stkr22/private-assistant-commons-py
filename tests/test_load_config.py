@@ -17,7 +17,6 @@ def temp_yaml_files(tmp_path):
             {
                 "client_id": "test_skill_2",
                 "base_topic": "test/assistant",
-                "certainty_topic": "test/assistant/coordinator/certainty",
             }
         )
     )
@@ -38,7 +37,6 @@ def test_load_multiple_yaml_files(temp_yaml_files):
     assert config.mqtt_server_port == 1884
     assert config.client_id == "test_skill_2"
     assert config.base_topic == "test/assistant"
-    assert config.certainty_topic == "test/assistant/coordinator/certainty"
 
 
 def test_load_nonexistent_file():

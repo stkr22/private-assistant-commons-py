@@ -1,5 +1,5 @@
 from .base_skill import BaseSkill
-from .messages import ClientRequest, IntentAnalysisResult, NumberAnalysisResult, SkillCertainty, SkillRegistration
+from .messages import ClientRequest, IntentAnalysisResult, NumberAnalysisResult
 from .skill_config import SkillConfig
 
 __all__ = [
@@ -7,7 +7,5 @@ __all__ = [
     "ClientRequest",
     "IntentAnalysisResult",
     "NumberAnalysisResult",
-    "SkillCertainty",
-    "SkillRegistration",
     "SkillConfig",
 ]

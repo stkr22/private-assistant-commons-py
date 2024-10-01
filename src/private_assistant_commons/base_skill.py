@@ -1,9 +1,8 @@
-import threading
+import asyncio
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 
-import paho.mqtt.client as mqtt
+import aiomqtt
 from pydantic import ValidationError
 
 from private_assistant_commons import messages, skill_config
@@ -16,107 +15,82 @@ class BaseSkill(ABC):
     def __init__(
         self,
         config_obj: skill_config.SkillConfig,
-        mqtt_client: mqtt.Client,
+        mqtt_client: aiomqtt.Client,
+        task_group: asyncio.TaskGroup,
+        certainty_threshold: float = 0.8,
     ) -> None:
         self.config_obj: skill_config.SkillConfig = config_obj
-        mqtt_client.on_connect, mqtt_client.on_message = self.get_mqtt_functions()
-        self.mqtt_client: mqtt.Client = mqtt_client
-        self.lock: threading.RLock = threading.RLock()
+        self.certainty_threshold: float = certainty_threshold
         self.intent_analysis_results: dict[uuid.UUID, messages.IntentAnalysisResult] = {}
+        self.mqtt_client: aiomqtt.Client = mqtt_client
+        self.task_group: asyncio.TaskGroup = task_group
 
-    def get_mqtt_functions(self) -> tuple[Callable, Callable]:
-        def on_connect(mqtt_client: mqtt.Client, user_data, flags, rc: int, properties):
-            if rc == 0:
-                logger.info("Connected successfully with result code %s", rc)
-            else:
-                logger.error("Failed to connect, return code %d", rc)
-            mqtt_client.subscribe(
-                [
-                    (self.config_obj.feedback_topic, mqtt.SubscribeOptions(qos=1)),
-                    (
-                        self.config_obj.intent_analysis_result_topic,
-                        mqtt.SubscribeOptions(qos=1),
-                    ),
-                ]
-            )
+    @staticmethod
+    def decode_message_payload(payload) -> str | None:
+        """Decode the message payload if it is a suitable type."""
+        if isinstance(payload, bytes) or isinstance(payload, bytearray):
+            return payload.decode("utf-8")
+        elif isinstance(payload, str):
+            return payload
+        else:
+            logger.warning("Unexpected payload type: %s", type(payload))
+            return None
 
-        def on_message(mqtt_client: mqtt.Client, user_data, msg: mqtt.MQTTMessage):
-            logger.debug("Received message on topic %s: %s", msg.topic, msg.payload.decode("utf-8"))
-            if msg.topic == self.config_obj.feedback_topic:
-                self.handle_feedback_message(msg.payload.decode("utf-8"))
-            elif msg.topic == self.config_obj.intent_analysis_result_topic:
-                self.handle_client_request_message(msg.payload.decode("utf-8"))
+    async def setup_subscriptions(self) -> None:
+        """Set up MQTT topic subscriptions for the skill."""
+        await self.mqtt_client.subscribe(topic=self.config_obj.intent_analysis_result_topic, qos=1)
+        logger.info("Subscribed to intent analysis result topic: %s", self.config_obj.intent_analysis_result_topic)
 
-        return on_connect, on_message
+    async def listen_to_messages(self, client: aiomqtt.Client) -> None:
+        """Listen for incoming MQTT messages and handle them appropriately."""
+        async for message in client.messages:
+            logger.debug("Received message on topic %s", message.topic)
+
+            if message.topic.matches(self.config_obj.intent_analysis_result_topic):
+                payload_str = self.decode_message_payload(message.payload)
+                if payload_str is not None:
+                    await self.handle_client_request_message(payload_str)
 
     @abstractmethod
-    def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
+    async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
         pass
 
-    def handle_client_request_message(self, payload: str) -> None:
+    async def handle_client_request_message(self, payload: str) -> None:
         try:
             intent_analysis_result = messages.IntentAnalysisResult.model_validate_json(payload)
             self.intent_analysis_results[intent_analysis_result.id] = intent_analysis_result
-            certainty = self.calculate_certainty(intent_analysis_result)
-            certainty_message = messages.SkillCertainty(
-                message_id=intent_analysis_result.id,
-                certainty=certainty,
-                skill_id=self.config_obj.client_id,
-            )
-            self.mqtt_client.publish(
-                self.config_obj.certainty_topic,
-                certainty_message.model_dump_json(),
-                qos=1,
-            )
+
+            # Calculate certainty
+            certainty = await self.calculate_certainty(intent_analysis_result)
+            logger.debug("Calculated certainty for intent: %.2f", certainty)
+
+            # If certainty is above the threshold, process the request
+            if certainty >= self.certainty_threshold:
+                await self.process_request(intent_analysis_result)
+            else:
+                logger.info(
+                    "Certainty (%.2f) below threshold (%.2f), skipping request.", certainty, self.certainty_threshold
+                )
         except ValidationError as e:
             logger.error("Error validating client request message: %s", e)
 
-    def handle_feedback_message(self, payload: str) -> None:
-        try:
-            message_id = uuid.UUID(payload)
-        except ValueError:
-            logger.error("Feedback message_id is not a UUID: %s", payload)
-            return
-        intent_analysis_result = self.intent_analysis_results.get(message_id)
-        if intent_analysis_result is not None:
-            self.process_request(intent_analysis_result)
-        else:
-            logger.error("No intent analysis result for UUID %s was found.", message_id)
-
-    def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
-        self.mqtt_client.publish(client_request.output_topic, response_text, qos=2)
-
-    def broadcast_text(self, response_text: str) -> None:
-        self.mqtt_client.publish(self.config_obj.broadcast_topic, response_text, qos=1)
-
     @abstractmethod
-    def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
+    async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
         pass
 
-    def register_skill(self) -> None:
-        with self.lock:
-            registration_message = messages.SkillRegistration(
-                skill_id=self.config_obj.client_id,
-                feedback_topic=self.config_obj.feedback_topic,
-            )
-            self.mqtt_client.publish(
-                self.config_obj.register_topic,
-                registration_message.model_dump_json(),
-                qos=1,
-            )
-            self.registration_timer = threading.Timer(self.config_obj.registration_interval, self.register_skill)
-            self.registration_timer.daemon = True  # Keeping it daemon, as it's safe for this context
-            self.registration_timer.start()
+    async def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
+        """Publish a message to a specific output topic."""
+        await self.mqtt_client.publish(topic=client_request.output_topic, payload=response_text, qos=2, retain=False)
+        logger.info("Published message to topic '%s'.", client_request.output_topic)
 
-    def shutdown(self) -> None:
-        if hasattr(self, "registration_timer"):
-            self.registration_timer.cancel()  # Ensure the timer is cancelled on shutdown
-        self.mqtt_client.disconnect()
+    async def broadcast_text(self, response_text: str) -> None:
+        """Broadcast a message to the broadcast topic."""
+        await self.mqtt_client.publish(
+            topic=self.config_obj.broadcast_topic, payload=response_text, qos=1, retain=False
+        )
+        logger.info("Broadcast message published to topic '%s'.", self.config_obj.broadcast_topic)
 
-    def run(self) -> None:
-        try:
-            self.mqtt_client.connect(self.config_obj.mqtt_server_host, self.config_obj.mqtt_server_port, 60)
-            self.register_skill()
-            self.mqtt_client.loop_forever()
-        finally:
-            self.shutdown()
+    async def add_task(self, coro):
+        """Add a new task to the task group."""
+        logger.info("Adding new task to the task group.")
+        self.task_group.create_task(coro)

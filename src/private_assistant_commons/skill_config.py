@@ -38,9 +38,6 @@ class SkillConfig(BaseModel):
     mqtt_server_port: int = 1883
     client_id: str = "default_skill"
     base_topic: str = "assistant"
-    certainty_topic: str = "assistant/coordinator/certainty"
-    register_topic: str = "assistant/coordinator/register"
-    registration_interval: float = 500.0
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
     broadcast_topic: str = "assistant/comms_bridge/broadcast"
 
