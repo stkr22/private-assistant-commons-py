@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "private-assistant-commons"
-version = "1.0.3"
+version = "1.1.0"
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
 authors = ["stkr22 <stkr22@github.com>"]
 readme = "README.md"
@@ -16,6 +16,7 @@ python = ">=3.11,<3.13"
 pyyaml = "^6.0.1"
 pydantic = "^2.8.2"
 aiomqtt = "^2.3.0"
+typer = {extras = ["all"], version = "^0.12.5"}
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.6.8"

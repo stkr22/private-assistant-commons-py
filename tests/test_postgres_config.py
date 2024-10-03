@@ -10,7 +10,7 @@ def test_default_values():
     assert config.host == "localhost"
     assert config.port == 5432
     assert config.database == "postgres"
-    assert config.connection_string == "postgresql+psycopg2://postgres:postgres@localhost:5432/postgres"
+    assert config.connection_string == "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
 
 
 def test_custom_values():
@@ -23,7 +23,7 @@ def test_custom_values():
     assert config.port == 1234
     assert config.database == "custom_database"
     assert (
-        config.connection_string == "postgresql+psycopg2://custom_user:custom_password@custom_host:1234/custom_database"
+        config.connection_string == "postgresql+psycopg://custom_user:custom_password@custom_host:1234/custom_database"
     )
 
 
@@ -40,7 +40,7 @@ def test_from_env(monkeypatch):
     assert config.host == "env_host"
     assert config.port == 5678
     assert config.database == "env_database"
-    assert config.connection_string == "postgresql+psycopg2://env_user:env_password@env_host:5678/env_database"
+    assert config.connection_string == "postgresql+psycopg://env_user:env_password@env_host:5678/env_database"
 
 
 def test_from_env_with_defaults(monkeypatch):
@@ -56,7 +56,7 @@ def test_from_env_with_defaults(monkeypatch):
     assert config.host == "localhost"
     assert config.port == 5432
     assert config.database == "postgres"
-    assert config.connection_string == "postgresql+psycopg2://postgres:postgres@localhost:5432/postgres"
+    assert config.connection_string == "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
 
 
 def test_invalid_port(monkeypatch):

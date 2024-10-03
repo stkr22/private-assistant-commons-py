@@ -1,3 +1,4 @@
+import logging
 import unittest
 import uuid
 from unittest.mock import AsyncMock, Mock, patch
@@ -25,10 +26,14 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         self.mock_config.broadcast_topic = "test/broadcast"
         self.mock_config.mqtt_server_host = "localhost"
         self.mock_config.mqtt_server_port = 1883
+        self.mock_logger = Mock(logging.Logger)
 
         # Instantiate the concrete subclass instead of BaseSkill
         self.skill = TestSkill(
-            config_obj=self.mock_config, mqtt_client=self.mock_mqtt_client, task_group=self.task_group
+            config_obj=self.mock_config,
+            mqtt_client=self.mock_mqtt_client,
+            task_group=self.task_group,
+            logger=self.mock_logger,
         )
 
     @patch("private_assistant_commons.messages.IntentAnalysisResult")
@@ -42,16 +47,14 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         MockIntentAnalysisResult.model_validate_json.assert_called_once_with(mock_payload)
         self.assertIn(mock_result.id, self.skill.intent_analysis_results)
 
-    @patch("private_assistant_commons.base_skill.logger")
-    async def test_handle_client_request_message_invalid(self, mock_logger):
+    async def test_handle_client_request_message_invalid(self):
         invalid_payload = '{"invalid": "json"}'
 
         await self.skill.handle_client_request_message(invalid_payload)
 
-        mock_logger.error.assert_called_once_with("Error validating client request message: %s", unittest.mock.ANY)
+        self.mock_logger.error.assert_called_once_with("Error validating client request message: %s", unittest.mock.ANY)
 
-    @patch("private_assistant_commons.base_skill.logger")
-    async def test_listen_to_messages_valid(self, mock_logger):
+    async def test_listen_to_messages_valid(self):
         mock_message = Mock()
         mock_message.topic.matches.return_value = True
         mock_message.payload = b'{"id": "12345678-1234-5678-1234-567812345678"}'

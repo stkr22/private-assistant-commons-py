@@ -18,7 +18,11 @@ class PostgresConfig(BaseModel):
 
     @property
     def connection_string(self) -> str:
-        return f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    @property
+    def connection_string_async(self) -> str:
+        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
     @classmethod
     def from_env(cls) -> Self:
