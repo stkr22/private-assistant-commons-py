@@ -108,7 +108,7 @@ class BaseSkill(ABC):
                 "Failed to broadcast message to topic '%s': %s", self.config_obj.broadcast_topic, e, exc_info=True
             )
 
-    def add_task(self, coro: asyncio._CoroutineLike) -> asyncio.Task:
+    def add_task(self, coro) -> asyncio.Task:
         """Add a new task to the task group and return it."""
         logger.info("Adding new task to the task group.")
         task = self.task_group.create_task(coro)
