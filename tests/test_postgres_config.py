@@ -1,7 +1,6 @@
 import pytest
-from private_assistant_commons.skill_config import (
-    PostgresConfig,  # Adjust the import according to your module's structure
-)
+
+from private_assistant_commons.skill_config import PostgresConfig
 
 
 def test_default_values():

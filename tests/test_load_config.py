@@ -1,7 +1,8 @@
 import pytest
 import yaml
-from private_assistant_commons import skill_config
 from pydantic import ValidationError
+
+from private_assistant_commons import skill_config
 
 
 @pytest.fixture

@@ -1,12 +1,13 @@
 import uuid
 
 import pytest
-from private_assistant_commons import (  # Replace 'your_module' with the actual module name
+from pydantic import ValidationError
+
+from private_assistant_commons import (
     ClientRequest,
     IntentAnalysisResult,
     NumberAnalysisResult,
 )
-from pydantic import ValidationError
 
 
 def test_client_request():
