@@ -79,18 +79,37 @@ class BaseSkill(ABC):
         pass
 
     async def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
-        """Publish a message to a specific output topic."""
-        await self.mqtt_client.publish(topic=client_request.output_topic, payload=response_text, qos=2, retain=False)
-        logger.info("Published message to topic '%s'.", client_request.output_topic)
+        """Publish a message to a specific output topic with error handling."""
+        try:
+            logger.debug("Attempting to publish message to topic '%s'.", client_request.output_topic)
+            await self.mqtt_client.publish(
+                topic=client_request.output_topic, payload=response_text, qos=2, retain=False
+            )
+            logger.info("Published message to topic '%s'.", client_request.output_topic)
+        except asyncio.CancelledError:
+            logger.warning("Publishing to topic '%s' was cancelled.", client_request.output_topic)
+            raise
+        except Exception as e:
+            logger.error("Failed to publish message to topic '%s': %s", client_request.output_topic, e, exc_info=True)
 
     async def broadcast_text(self, response_text: str) -> None:
-        """Broadcast a message to the broadcast topic."""
-        await self.mqtt_client.publish(
-            topic=self.config_obj.broadcast_topic, payload=response_text, qos=1, retain=False
-        )
-        logger.info("Broadcast message published to topic '%s'.", self.config_obj.broadcast_topic)
+        """Broadcast a message to the broadcast topic with error handling."""
+        try:
+            logger.debug("Attempting to broadcast message to topic '%s'.", self.config_obj.broadcast_topic)
+            await self.mqtt_client.publish(
+                topic=self.config_obj.broadcast_topic, payload=response_text, qos=1, retain=False
+            )
+            logger.info("Broadcast message published to topic '%s'.", self.config_obj.broadcast_topic)
+        except asyncio.CancelledError:
+            logger.warning("Broadcast to topic '%s' was cancelled.", self.config_obj.broadcast_topic)
+            raise
+        except Exception as e:
+            logger.error(
+                "Failed to broadcast message to topic '%s': %s", self.config_obj.broadcast_topic, e, exc_info=True
+            )
 
-    async def add_task(self, coro):
-        """Add a new task to the task group."""
+    def add_task(self, coro: asyncio._CoroutineLike) -> asyncio.Task:
+        """Add a new task to the task group and return it."""
         logger.info("Adding new task to the task group.")
-        self.task_group.create_task(coro)
+        task = self.task_group.create_task(coro)
+        return task
