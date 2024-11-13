@@ -22,3 +22,4 @@ class IntentAnalysisResult(BaseModel):
     numbers: list[NumberAnalysisResult]
     nouns: list[str]
     verbs: list[str]
+    rooms: list[str] = []
