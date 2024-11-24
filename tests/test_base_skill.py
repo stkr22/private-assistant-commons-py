@@ -27,6 +27,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         self.mock_config.mqtt_server_host = "localhost"
         self.mock_config.mqtt_server_port = 1883
         self.mock_logger = Mock(logging.Logger)
+        self.default_alert = messages.Alert(play_before=True)
 
         # Instantiate the concrete subclass instead of BaseSkill
         self.skill = TestSkill(
@@ -70,25 +71,82 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
             await self.skill.listen_to_messages(mock_mqtt_client)
             mock_handle_client_request.assert_called_once_with('{"id": "12345678-1234-5678-1234-567812345678"}')
 
-    async def test_add_text_to_output_topic(self):
+    async def test_add_text_to_output_topic_with_alert(self):
         mock_request = Mock(spec=messages.ClientRequest)
         mock_request.output_topic = "test/output"
         response_text = "Test response"
 
-        await self.skill.add_text_to_output_topic(response_text, mock_request)
+        # Call the new method with default alert options
+        await self.skill.publish_with_alert(response_text, client_request=mock_request)
+
+        # Build the expected payload
+        expected_alert = self.skill.default_alert
+        expected_payload = messages.Response(text=response_text, alert=expected_alert).model_dump_json()
+
         self.mock_mqtt_client.publish.assert_called_once_with(
             topic=mock_request.output_topic,
-            payload=response_text,
-            qos=2,
+            payload=expected_payload,
+            qos=1,
             retain=False,
         )
 
-    async def test_broadcast_text(self):
+    async def test_broadcast_text_with_alert(self):
         response_text = "Broadcast message"
-        await self.skill.broadcast_text(response_text)
+
+        # Call the new method with broadcast set to True
+        await self.skill.publish_with_alert(response_text, broadcast=True)
+
+        # Build the expected payload
+        expected_alert = self.skill.default_alert
+        expected_payload = messages.Response(text=response_text, alert=expected_alert).model_dump_json()
+
         self.mock_mqtt_client.publish.assert_called_once_with(
             topic=self.mock_config.broadcast_topic,
-            payload=response_text,
+            payload=expected_payload,
+            qos=1,
+            retain=False,
+        )
+
+    async def test_add_text_to_output_topic_with_custom_alert(self):
+        mock_request = Mock(spec=messages.ClientRequest)
+        mock_request.output_topic = "test/output"
+        response_text = "Test response"
+
+        # Custom alert options
+        custom_alert = messages.Alert(play_before=False, play_after=True, sound="custom_sound")
+
+        # Call the new method with custom alert
+        await self.skill.publish_with_alert(response_text, client_request=mock_request, alert=custom_alert)
+
+        # Build the expected payload
+        expected_payload = messages.Response(text=response_text, alert=custom_alert).model_dump_json()
+
+        self.mock_mqtt_client.publish.assert_called_once_with(
+            topic=mock_request.output_topic,
+            payload=expected_payload,
+            qos=1,
+            retain=False,
+        )
+
+    async def test_broadcast_text_with_custom_alert(self):
+        response_text = "Broadcast message"
+
+        # Custom alert options
+        custom_alert = messages.Alert(play_before=True, play_after=False, sound="custom_broadcast_sound")
+
+        # Call the new method with broadcast set to True and custom alert
+        await self.skill.publish_with_alert(
+            response_text,
+            broadcast=True,
+            alert=custom_alert,
+        )
+
+        # Build the expected payload
+        expected_payload = messages.Response(text=response_text, alert=custom_alert).model_dump_json()
+
+        self.mock_mqtt_client.publish.assert_called_once_with(
+            topic=self.mock_config.broadcast_topic,
+            payload=expected_payload,
             qos=1,
             retain=False,
         )

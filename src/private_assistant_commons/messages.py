@@ -23,3 +23,14 @@ class IntentAnalysisResult(BaseModel):
     nouns: list[str]
     verbs: list[str]
     rooms: list[str] = []
+
+
+class Alert(BaseModel):
+    play_before: bool = False
+    play_after: bool = False
+    sound: str = "default"
+
+
+class Response(BaseModel):
+    text: str
+    alert: Alert | None = None
