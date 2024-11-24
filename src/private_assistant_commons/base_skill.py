@@ -24,6 +24,7 @@ class BaseSkill(ABC):
         self.mqtt_client: aiomqtt.Client = mqtt_client
         self.task_group: asyncio.TaskGroup = task_group
         self.logger = logger or skill_logger.SkillLogger.get_logger(__name__)
+        self.default_alert = messages.Alert(play_before=True)
 
     def decode_message_payload(self, payload) -> str | None:
         """Decode the message payload if it is a suitable type."""
@@ -77,37 +78,79 @@ class BaseSkill(ABC):
     async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
         pass
 
-    async def add_text_to_output_topic(self, response_text: str, client_request: messages.ClientRequest) -> None:
-        """Publish a message to a specific output topic with error handling."""
+    async def send_response(
+        self,
+        response_text: str,
+        client_request: messages.ClientRequest,
+        alert: messages.Alert | None = None,
+    ) -> None:
+        """Publish a response using the new `Response` class."""
+        response = messages.Response(text=response_text, alert=alert)
         try:
-            self.logger.debug("Attempting to publish message to topic '%s'.", client_request.output_topic)
+            self.logger.debug("Publishing response as JSON to topic '%s'.", client_request.output_topic)
             await self.mqtt_client.publish(
-                topic=client_request.output_topic, payload=response_text, qos=2, retain=False
+                topic=client_request.output_topic,
+                payload=response.model_dump_json(exclude_none=True),
+                qos=1,
+                retain=False,
             )
-            self.logger.info("Published message to topic '%s'.", client_request.output_topic)
+            self.logger.info("Published response to topic '%s'.", client_request.output_topic)
         except asyncio.CancelledError:
             self.logger.warning("Publishing to topic '%s' was cancelled.", client_request.output_topic)
             raise
         except Exception as e:
             self.logger.error(
-                "Failed to publish message to topic '%s': %s", client_request.output_topic, e, exc_info=True
+                "Failed to publish response to topic '%s': %s", client_request.output_topic, e, exc_info=True
             )
 
-    async def broadcast_text(self, response_text: str) -> None:
-        """Broadcast a message to the broadcast topic with error handling."""
+    async def broadcast_response(
+        self,
+        response_text: str,
+        alert: messages.Alert | None = None,
+    ) -> None:
+        """Broadcast a response using the new `Response` class."""
+        response = messages.Response(text=response_text, alert=alert)
         try:
-            self.logger.debug("Attempting to broadcast message to topic '%s'.", self.config_obj.broadcast_topic)
+            self.logger.debug("Broadcasting response as JSON to topic '%s'.", self.config_obj.broadcast_topic)
             await self.mqtt_client.publish(
-                topic=self.config_obj.broadcast_topic, payload=response_text, qos=1, retain=False
+                topic=self.config_obj.broadcast_topic,
+                payload=response.model_dump_json(exclude_none=True),
+                qos=1,
+                retain=False,
             )
-            self.logger.info("Broadcast message published to topic '%s'.", self.config_obj.broadcast_topic)
+            self.logger.info("Broadcast response to topic '%s'.", self.config_obj.broadcast_topic)
         except asyncio.CancelledError:
             self.logger.warning("Broadcast to topic '%s' was cancelled.", self.config_obj.broadcast_topic)
             raise
         except Exception as e:
             self.logger.error(
-                "Failed to broadcast message to topic '%s': %s", self.config_obj.broadcast_topic, e, exc_info=True
+                "Failed to broadcast response to topic '%s': %s", self.config_obj.broadcast_topic, e, exc_info=True
             )
+
+    async def publish_with_alert(
+        self,
+        response_text: str,
+        client_request: messages.ClientRequest | None = None,
+        broadcast: bool = False,
+        alert: messages.Alert | None = None,
+    ) -> None:
+        """
+        Publish a message to either the broadcast topic or a specific output topic with alert options.
+
+        :param response_text: The text to be published.
+        :param client_request: The client request object (required if not broadcasting).
+        :param broadcast: Set to True to broadcast, False to publish to output topic.
+        """
+        if alert is None:
+            alert = self.default_alert
+
+        # Call the appropriate existing method
+        if broadcast:
+            await self.broadcast_response(response_text, alert=alert)
+        elif client_request is not None:
+            await self.send_response(response_text, client_request, alert=alert)
+        else:
+            raise ValueError("client_request must be provided if broadcast is False.")
 
     def add_task(self, coro) -> asyncio.Task:
         """Add a new task to the task group and return it."""
