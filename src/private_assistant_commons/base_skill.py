@@ -36,10 +36,13 @@ class BaseSkill(ABC):
             self.logger.warning("Unexpected payload type: %s", type(payload))
             return None
 
-    async def setup_subscriptions(self) -> None:
+    async def setup_mqtt_subscriptions(self) -> None:
         """Set up MQTT topic subscriptions for the skill."""
         await self.mqtt_client.subscribe(topic=self.config_obj.intent_analysis_result_topic, qos=1)
         self.logger.info("Subscribed to intent analysis result topic: %s", self.config_obj.intent_analysis_result_topic)
+
+    async def skill_preparations(self) -> None:
+        pass
 
     async def listen_to_messages(self, client: aiomqtt.Client) -> None:
         """Listen for incoming MQTT messages and handle them appropriately."""

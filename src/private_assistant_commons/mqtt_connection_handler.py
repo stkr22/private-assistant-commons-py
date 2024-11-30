@@ -33,7 +33,8 @@ async def mqtt_connection_handler(
                     )
 
                     # Set up subscriptions
-                    await skill_instance.setup_subscriptions()
+                    await skill_instance.setup_mqtt_subscriptions()
+                    await skill_instance.skill_preparations()
 
                     # Add the MQTT listener task to the task group
                     tg.create_task(skill_instance.listen_to_messages(mqtt_client))
