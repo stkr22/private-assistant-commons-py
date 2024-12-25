@@ -88,12 +88,7 @@ def load_config(config_path: str | Path, config_class: type[T]) -> T:
     """
     config_path = Path(config_path)
 
-    if config_path.is_dir():
-        # Get all YAML files in the directory, sorted alphabetically
-        yaml_files = sorted(config_path.glob("*.yaml"))
-    else:
-        # Single file path given
-        yaml_files = [config_path]
+    yaml_files = sorted(config_path.glob("*.yaml")) if config_path.is_dir() else [config_path]
 
     if not yaml_files:
         raise FileNotFoundError(f"No YAML files found in the directory: {config_path}")

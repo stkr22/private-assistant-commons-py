@@ -28,19 +28,19 @@ class BaseSkill(ABC):
 
     def decode_message_payload(self, payload) -> str | None:
         """Decode the message payload if it is a suitable type."""
-        if isinstance(payload, bytes) or isinstance(payload, bytearray):
+        if isinstance(payload, bytes | bytearray):
             return payload.decode("utf-8")
-        elif isinstance(payload, str):
+        if isinstance(payload, str):
             return payload
-        else:
-            self.logger.warning("Unexpected payload type: %s", type(payload))
-            return None
+        self.logger.warning("Unexpected payload type: %s", type(payload))
+        return None
 
     async def setup_mqtt_subscriptions(self) -> None:
         """Set up MQTT topic subscriptions for the skill."""
         await self.mqtt_client.subscribe(topic=self.config_obj.intent_analysis_result_topic, qos=1)
         self.logger.info("Subscribed to intent analysis result topic: %s", self.config_obj.intent_analysis_result_topic)
 
+    @abstractmethod
     async def skill_preparations(self) -> None:
         pass
 
@@ -158,5 +158,4 @@ class BaseSkill(ABC):
     def add_task(self, coro) -> asyncio.Task:
         """Add a new task to the task group and return it."""
         self.logger.info("Adding new task to the task group.")
-        task = self.task_group.create_task(coro)
-        return task
+        return self.task_group.create_task(coro)
