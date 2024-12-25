@@ -9,7 +9,7 @@ from private_assistant_commons.base_skill import BaseSkill
 
 # Concrete subclass of BaseSkill for testing
 class TestSkill(BaseSkill):
-    async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
+    async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:  # noqa: ARG002
         return 1.0  # Simplified certainty calculation for testing
 
     async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
@@ -38,14 +38,14 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         )
 
     @patch("private_assistant_commons.messages.IntentAnalysisResult")
-    async def test_handle_client_request_message_valid(self, MockIntentAnalysisResult):
+    async def test_handle_client_request_message_valid(self, mock_intent_analysis_result):
         mock_payload = '{"id": "12345678-1234-5678-1234-567812345678"}'
-        mock_result = MockIntentAnalysisResult.model_validate_json.return_value
+        mock_result = mock_intent_analysis_result.model_validate_json.return_value
         mock_result.id = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
         await self.skill.handle_client_request_message(mock_payload)
 
-        MockIntentAnalysisResult.model_validate_json.assert_called_once_with(mock_payload)
+        mock_intent_analysis_result.model_validate_json.assert_called_once_with(mock_payload)
         self.assertIn(mock_result.id, self.skill.intent_analysis_results)
 
     async def test_handle_client_request_message_invalid(self):
