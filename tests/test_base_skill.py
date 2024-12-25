@@ -15,6 +15,9 @@ class TestSkill(BaseSkill):
     async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
         pass  # Simplified processing logic for testing
 
+    async def skill_preparations(self) -> None:
+        pass
+
 
 class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
