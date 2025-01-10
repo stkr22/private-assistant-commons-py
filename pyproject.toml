@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "private-assistant-commons"
-version = "3.0.0"
+version = "3.0.1"
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
 authors = [
     { name = "stkr22", email = "stkr22@github.com" }
@@ -22,18 +22,18 @@ classifiers = [
 
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "pydantic>=2.9.2,<3.0.0",
-    "aiomqtt>=2.3.0,<3.0.0",
-    "pyyaml>=6.0.1,<7.0.0",
+    "pydantic~=2.9.2",
+    "aiomqtt~=2.3.0",
+    "pyyaml~=6.0.1",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.8.0",
-    "mypy>=1.11.0",
-    "pytest>=8.3.3",
-    "pytest-cov>=6.0.0",
-    "types-pyyaml>=6.0.12.20240724,<7.0.0"
+    "ruff~=0.8.0",
+    "mypy~=1.11.0",
+    "pytest~=8.3.3",
+    "pytest-cov~=6.0.0",
+    "types-pyyaml~=6.0.12.20240724"
 ]
 
 [tool.ruff]
