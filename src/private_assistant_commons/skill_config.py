@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Self, TypeVar
+from typing import Self
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -50,9 +50,6 @@ class SkillConfig(BaseModel):
         return f"{self.base_topic}/{self.client_id}/feedback"
 
 
-T = TypeVar("T", bound=BaseModel)
-
-
 def combine_yaml_files(file_paths: list[Path]) -> dict:
     """
     Combine multiple YAML files into a single dictionary.
@@ -71,7 +68,7 @@ def combine_yaml_files(file_paths: list[Path]) -> dict:
     return combined_data
 
 
-def load_config(config_path: str | Path, config_class: type[T]) -> T:
+def load_config[T: BaseModel](config_path: str | Path, config_class: type[T]) -> T:
     """
     Load and validate configuration from YAML files.
 
