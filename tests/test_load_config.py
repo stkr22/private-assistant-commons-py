@@ -4,6 +4,8 @@ from pydantic import ValidationError
 
 from private_assistant_commons import skill_config
 
+TEST_MQTT_PORT = 1884
+
 
 @pytest.fixture
 def temp_yaml_files(tmp_path):
@@ -11,7 +13,7 @@ def temp_yaml_files(tmp_path):
     yaml_file1 = tmp_path / "file1.yaml"
     yaml_file2 = tmp_path / "file2.yaml"
     yaml_file1.write_text(
-        yaml.dump({"mqtt_server_host": "test_host", "mqtt_server_port": 1884, "client_id": "test_skill_1"})
+        yaml.dump({"mqtt_server_host": "test_host", "mqtt_server_port": TEST_MQTT_PORT, "client_id": "test_skill_1"})
     )
     yaml_file2.write_text(
         yaml.dump(
@@ -28,14 +30,14 @@ def test_load_single_yaml_file(temp_yaml_files):
     single_file = temp_yaml_files / "file1.yaml"
     config = skill_config.load_config(single_file, skill_config.SkillConfig)
     assert config.mqtt_server_host == "test_host"
-    assert config.mqtt_server_port == 1884
+    assert config.mqtt_server_port == TEST_MQTT_PORT
     assert config.client_id == "test_skill_1"
 
 
 def test_load_multiple_yaml_files(temp_yaml_files):
     config = skill_config.load_config(temp_yaml_files, skill_config.SkillConfig)
     assert config.mqtt_server_host == "test_host"
-    assert config.mqtt_server_port == 1884
+    assert config.mqtt_server_port == TEST_MQTT_PORT
     assert config.client_id == "test_skill_2"
     assert config.base_topic == "test/assistant"
 
