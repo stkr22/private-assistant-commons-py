@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "private-assistant-commons"
-version = "3.0.1"
+dynamic = ["version"]
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
 authors = [
     { name = "stkr22", email = "stkr22@github.com" }
@@ -35,8 +35,17 @@ dev = [
     "mypy~=1.17.0",
     "pytest~=8.4.1",
     "pytest-cov~=6.2.1",
-    "types-pyyaml~=6.0.12.20240724"
+    "types-pyyaml~=6.0.12.20240724",
+    "pytest-xdist~=3.6.0",
+    "coverage[toml]~=7.6.0",
+    "commitizen~=4.8.3",
 ]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel.hooks.vcs]
+version-file = "src/private_assistant_commons/_version.py"
 
 [tool.ruff]
 target-version = "py312"
@@ -57,8 +66,15 @@ select = [
     "ARG",  # flake8-unused-arguments
     "PTH",  # flake8-use-pathlib
     "ERA",  # eradicate
+    "PL",   # pylint
+    "RUF",  # ruff-specific rules
+    "TCH",  # flake8-type-checking
 ]
 ignore = ["E203"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.mypy]
 python_version = "3.12"
@@ -68,7 +84,7 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra -q"
+addopts = "-ra -q --dist=auto"
 
 [tool.coverage.run]
 source = ["private_assistant_commons"]
@@ -80,3 +96,10 @@ exclude_lines = [
     "def __repr__",
     "if __name__ == .__main__.:",
 ]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "pep440"
+version_provider = "pep621"
+update_changelog_on_bump = true

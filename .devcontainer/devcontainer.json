@@ -1,10 +1,12 @@
 {
 	"name": "private-assistant-commons-dev-environment",
-	"build":
-		{
-			"dockerfile": "Containerfile",
-			"context": "."
-		},
+	"build": {
+		"dockerfile": "Containerfile",
+		"context": "."
+	},
+	"features": {
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+	},
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -18,13 +20,41 @@
 				"github.vscode-github-actions",
 				"oderwat.indent-rainbow",
 				"mhutchie.git-graph",
-				"vivaxy.vscode-conventional-commits"
-			]
+				"vivaxy.vscode-conventional-commits",
+				"eamodio.gitlens",
+			],
+			"settings": {
+				"terminal.integrated.defaultProfile.linux": "zsh",
+				"terminal.integrated.profiles.linux": {
+					"bash": {
+						"path": "bash",
+						"icon": "terminal-bash"
+					},
+					"zsh": {
+						"path": "zsh"
+					}
+				},
+				"editor.formatOnSave": true
+			}
 		}
 	},
 	"containerEnv": {
-		"HOME": "/home/vscode"
+		"HOME": "/home/vscode",
+		"ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
+    	"CLAUDE_CONFIG_DIR": "/home/node/.claude"
 	},
-	"postCreateCommand": "uv sync --group dev"
-
+	"mounts": [
+		{
+			"source": "claude-code-bashhistory-${devcontainerId}",
+			"target": "/commandhistory",
+			"type": "volume"
+		},
+		{
+			"source": "${localWorkspaceFolder}/.claude",
+			"target": "/workspaces/.claude",
+			"type": "bind",
+			"consistency": "cached"
+		}
+	],
+	"postCreateCommand": "uv sync --group dev && echo 'Claude Code is ready! Run: claude' && echo 'For unattended operation: claude --dangerously-skip-permissions'"
 }
