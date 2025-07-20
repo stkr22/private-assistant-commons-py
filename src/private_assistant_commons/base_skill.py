@@ -1,7 +1,10 @@
 import asyncio
 import logging
-import uuid
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import uuid
 
 import aiomqtt
 from pydantic import ValidationError

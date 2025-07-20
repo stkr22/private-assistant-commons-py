@@ -9,6 +9,9 @@ from private_assistant_commons import (
     NumberAnalysisResult,
 )
 
+TEST_NUMBER_TOKEN_1 = 5
+TEST_NUMBER_TOKEN_2 = 10
+
 
 def test_client_request():
     request_id = uuid.uuid4()
@@ -23,16 +26,18 @@ def test_client_request():
 
 
 def test_number_analysis_result():
-    number_analysis_result = NumberAnalysisResult(number_token=5, previous_token="bought", next_token="apples")
+    number_analysis_result = NumberAnalysisResult(
+        number_token=TEST_NUMBER_TOKEN_1, previous_token="bought", next_token="apples"
+    )
 
-    assert number_analysis_result.number_token == 5
+    assert number_analysis_result.number_token == TEST_NUMBER_TOKEN_1
     assert number_analysis_result.previous_token == "bought"
     assert number_analysis_result.next_token == "apples"
 
     # Test with optional fields as None
-    number_analysis_result_none = NumberAnalysisResult(number_token=10)
+    number_analysis_result_none = NumberAnalysisResult(number_token=TEST_NUMBER_TOKEN_2)
 
-    assert number_analysis_result_none.number_token == 10
+    assert number_analysis_result_none.number_token == TEST_NUMBER_TOKEN_2
     assert number_analysis_result_none.previous_token is None
     assert number_analysis_result_none.next_token is None
 
@@ -42,7 +47,9 @@ def test_intent_analysis_result():
     client_request = ClientRequest(
         id=request_id, text="Turn on the lights", room="living_room", output_topic="topic/output"
     )
-    number_analysis_result = NumberAnalysisResult(number_token=5, previous_token="bought", next_token="apples")
+    number_analysis_result = NumberAnalysisResult(
+        number_token=TEST_NUMBER_TOKEN_1, previous_token="bought", next_token="apples"
+    )
     intent_analysis_result = IntentAnalysisResult(
         client_request=client_request,
         numbers=[number_analysis_result],

@@ -1,14 +1,12 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "private-assistant-commons"
-version = "3.0.1"
+dynamic = ["version"]
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
-authors = [
-    { name = "stkr22", email = "stkr22@github.com" }
-]
+authors = [{ name = "stkr22", email = "stkr22@github.com" }]
 readme = "README.md"
 license = { text = "GNU General Public License v3.0" }
 
@@ -22,12 +20,8 @@ classifiers = [
     "Topic :: Home Automation",
 ]
 
-requires-python = ">=3.11,<3.13"
-dependencies = [
-    "pydantic~=2.9.2",
-    "aiomqtt~=2.4.0",
-    "pyyaml~=6.0.1",
-]
+requires-python = ">=3.12,<3.13"
+dependencies = ["pydantic~=2.9.2", "aiomqtt~=2.4.0", "pyyaml~=6.0.1"]
 
 [dependency-groups]
 dev = [
@@ -35,8 +29,17 @@ dev = [
     "mypy~=1.17.0",
     "pytest~=8.4.1",
     "pytest-cov~=6.2.1",
-    "types-pyyaml~=6.0.12.20240724"
+    "types-pyyaml~=6.0.12.20240724",
+    "pytest-xdist~=3.6.0",
+    "coverage[toml]~=7.6.0",
+    "commitizen~=4.8.3",
 ]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel.hooks.vcs]
+version-file = "src/private_assistant_commons/_version.py"
 
 [tool.ruff]
 target-version = "py312"
@@ -45,20 +48,27 @@ indent-width = 4
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "F",    # pyflakes
-    "I",    # isort
-    "UP",   # pyupgrade
-    "N",    # pep8-naming
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "RET",  # flake8-return
-    "SIM",  # flake8-simplify
-    "ARG",  # flake8-unused-arguments
-    "PTH",  # flake8-use-pathlib
-    "ERA",  # eradicate
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "ARG", # flake8-unused-arguments
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "PL",  # pylint
+    "RUF", # ruff-specific rules
+    "TCH", # flake8-type-checking
 ]
 ignore = ["E203"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
 
 [tool.mypy]
 python_version = "3.12"
@@ -68,7 +78,7 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra -q"
+addopts = "-ra -q -n auto"
 
 [tool.coverage.run]
 source = ["private_assistant_commons"]
@@ -80,3 +90,10 @@ exclude_lines = [
     "def __repr__",
     "if __name__ == .__main__.:",
 ]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "pep440"
+version_provider = "scm"
+update_changelog_on_bump = true

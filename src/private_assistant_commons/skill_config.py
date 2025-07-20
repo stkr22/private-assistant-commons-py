@@ -1,12 +1,14 @@
 import logging
 import os
 from pathlib import Path
-from typing import Self
+from typing import Self, TypeVar
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class PostgresConfig(BaseModel):
@@ -31,7 +33,7 @@ class PostgresConfig(BaseModel):
                 "user": os.getenv("POSTGRES_USER", "postgres"),
                 "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
                 "host": os.getenv("POSTGRES_HOST", "localhost"),
-                "port": int(os.getenv("POSTGRES_PORT", 5432)),
+                "port": int(os.getenv("POSTGRES_PORT", "5432")),
                 "database": os.getenv("POSTGRES_DB", "postgres"),
             }
         )
