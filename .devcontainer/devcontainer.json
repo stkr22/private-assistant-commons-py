@@ -1,9 +1,10 @@
 {
 	"name": "private-assistant-commons-dev-environment",
-	"build": {
-		"dockerfile": "Containerfile",
-		"context": "."
-	},
+	"build":
+		{
+			"dockerfile": "Containerfile",
+			"context": "."
+		},
 	"features": {
 		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
 	},
@@ -21,7 +22,6 @@
 				"oderwat.indent-rainbow",
 				"mhutchie.git-graph",
 				"vivaxy.vscode-conventional-commits",
-				"eamodio.gitlens",
 			],
 			"settings": {
 				"terminal.integrated.defaultProfile.linux": "zsh",
@@ -40,8 +40,8 @@
 	},
 	"containerEnv": {
 		"HOME": "/home/vscode",
-		"ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
-    	"CLAUDE_CONFIG_DIR": "/home/node/.claude"
+    	"CLAUDE_CONFIG_DIR": "/home/node/.claude",
+		"POWERLEVEL9K_DISABLE_GITSTATUS": "true"
 	},
 	"mounts": [
 		{
@@ -50,10 +50,9 @@
 			"type": "volume"
 		},
 		{
-			"source": "${localWorkspaceFolder}/.claude",
-			"target": "/workspaces/.claude",
-			"type": "bind",
-			"consistency": "cached"
+			"source": "claude-code-config-${devcontainerId}",
+			"target": "/home/node/.claude",
+			"type": "volume"
 		}
 	],
 	"postCreateCommand": "uv sync --group dev && echo 'Claude Code is ready! Run: claude' && echo 'For unattended operation: claude --dangerously-skip-permissions'"
