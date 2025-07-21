@@ -5,77 +5,115 @@
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v0.json)](https://github.com/charliermarsh/ruff)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-Owner: stkr22
+**Owner:** stkr22
 
-`private-assistant-commons` is a shared library designed to provide common utilities and foundational components essential for developing various skills within the Private Assistant ecosystem. This package includes base classes, utility functions, and common validation routines like messsages that standardize and streamline the development of new skills.
+Common utilities and base classes for building distributed voice assistant skills in a Private Assistant ecosystem. This library provides the foundation for creating modular, MQTT-based skills that process voice commands for home automation.
 
-## Features
+## Key Features
 
-- **Base Skill Class**: Provides a templated parent class from which all specific skill implementations inherit.
-- **MQTT Utilities**: Includes helper functions and classes for managing MQTT connections and message handling.
-- **Validation Utilities**: Offers standardized validation functions to ensure message integrity across different skills.
-- **Common Configurations**: Centralizes common configurations and settings that are used across multiple skills.
+- **BaseSkill Framework**: Abstract base class with distributed processing, certainty-based filtering, and task management
+- **MQTT Communication**: Structured message handling using Pydantic models with automatic reconnection
+- **Location Awareness**: Support for room-based command routing and targeting
+- **Audio Integration**: Configurable alerts and responses through voice bridge system
+- **Optional Persistence**: PostgreSQL integration for skills requiring state storage
 
-## Getting Started
-
-### Prerequisites
-
-Ensure you have Python 3.11+ installed, as this library uses features available in Python 3.11 and later.
+## Quick Start
 
 ### Installation
 
-Install `private-assistant-commons` by running the following command:
-
-Certainly! Let's craft both a concise description for your `pyproject.toml` and a more detailed description for your `README.md` for the new package named `private-assistant-commons`. This package is intended to serve as the foundation for shared utilities and components across all skills in your private assistant system.
-
-### Description for `pyproject.toml`
-
-This short description succinctly summarizes the purpose of the shared utilities package for inclusion in the `pyproject.toml` file:
-
-```toml
-description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
+```bash
+pip install private-assistant-commons
 ```
 
-### Description for `README.md`
+### Basic Skill Example
 
-For the `README.md` file, you'll want a more detailed description that explains the purpose, contains setup instructions, and outlines how to use the utilities. Here’s a proposed structure:
+```python
+from private_assistant_commons import BaseSkill, IntentAnalysisResult
 
-```markdown
-# Private Assistant Commons
+class LightControlSkill(BaseSkill):
+    async def calculate_certainty(self, intent: IntentAnalysisResult) -> float:
+        if "light" in intent.nouns and "turn" in intent.verbs:
+            return 0.9
+        return 0.0
 
-## Overview
+    async def process_request(self, intent: IntentAnalysisResult) -> None:
+        await self.send_response("Lights controlled!", intent.client_request)
 
-`private-assistant-commons` is a shared library designed to provide common utilities and foundational components essential for developing various skills within the Private Assistant ecosystem. This package includes base classes, utility functions, and common validation routines that standardize and streamline the development of new skills.
+    async def skill_preparations(self) -> None:
+        self.logger.info("Light skill ready")
+```
 
-## Features
+## Documentation
 
-- **Base Skill Class**: Provides a templated parent class from which all specific skill implementations inherit.
-- **MQTT Utilities**: Includes helper functions and classes for managing MQTT connections and message handling.
-- **Validation Utilities**: Offers standardized validation functions to ensure message integrity across different skills.
-- **Common Configurations**: Centralizes common configurations and settings that are used across multiple skills.
+📖 **[Full Documentation](docs/)**
 
-## Getting Started
+- **[Architecture Guide](docs/architecture.md)** - System design, components, and data flow
+- **[Usage Guide](docs/usage.md)** - Examples, patterns, and best practices
+- **[API Reference](docs/api-reference.md)** - Complete API documentation
+
+## System Overview
+
+Private Assistant Commons enables building a distributed voice assistant system where:
+
+- **Skills run independently** and decide whether to handle requests based on confidence scores
+- **Communication via MQTT** using structured Pydantic messages
+- **No central coordinator** - skills compete based on certainty thresholds
+- **Room-based targeting** distinguishes command origin from target locations
+- **Local deployment** typically on Kubernetes with STT/TTS APIs
+
+## Architecture
+
+```
+User Voice → Local Client → Voice Bridge → STT API → MQTT Broker
+                                                         ↓
+Intent Analysis Engine ← MQTT Broker ← Skills (distributed processing)
+                                                         ↓
+Voice Bridge ← TTS API ← MQTT Broker ← Skill Responses
+       ↓
+Local Client → Audio Output
+```
+
+Skills inherit from `BaseSkill` and implement:
+- `calculate_certainty()` - Confidence scoring for requests
+- `process_request()` - Main skill logic
+- `skill_preparations()` - Initialization setup
+
+## Development
 
 ### Prerequisites
 
-Ensure you have Python 3.11+ installed, as this library uses features available in Python 3.11 and later.
+- Python 3.12+
+- UV package manager
 
-### Usage
+### Setup
 
-Import and use the utilities in your skill implementations:
+```bash
+# Clone and setup environment
+git clone <repository-url>
+cd private-assistant-commons-py
+uv sync --group dev
 
-```python
-from private_assistant_commons import BaseSkill
+# Run tests
+uv run pytest
 
-class SwitchSkill(BaseSkill):
-    def __init__(self, ...):
-        super().__init__(...)
+# Format and lint
+uv run ruff format .
+uv run ruff check .
 
+# Type checking
+uv run mypy src/
 ```
 
-## Contributing
+### Essential Commands
 
-Contributions to `private-assistant-commons` are welcome! Please read our contributing guidelines on how to propose bug fixes, improvements, or new features.
+- `uv sync --group dev` - Install/update dependencies
+- `uv run pytest` - Run tests with coverage
+- `uv run ruff check .` - Lint code
+- `uv run mypy src/` - Type check
+- `pre-commit run --all-files` - Run all pre-commit hooks
+
+## License
+
+GNU General Public License v3.0 - see [LICENSE](LICENSE) for details.

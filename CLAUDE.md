@@ -28,6 +28,53 @@
 
 ## Critical Architecture Decisions
 
+### Private Assistant Ecosystem Overview
+
+This is a **commons library** for a distributed, local voice assistant system running on Kubernetes. The system processes voice commands for home automation through modular "skills" that communicate via MQTT.
+
+### Core Architectural Patterns
+
+**1. Distributed Skill Processing**
+- Skills inherit from `BaseSkill` and run as independent async services
+- Each skill receives `IntentAnalysisResult` messages and decides independently whether to process them
+- No central coordinator - skills compete based on certainty thresholds (`certainty_threshold` default: 0.8)
+- Multiple skills can process the same request (rare but acceptable for overlapping capabilities)
+
+**2. MQTT Message-Driven Communication**
+- All communication via MQTT using structured Pydantic models (`messages.py`)
+- Topic hierarchy: `assistant/intent_engine/result`, `assistant/comms_bridge/broadcast`
+- Skills must implement `calculate_certainty()` for keyword-based confidence scoring
+- Async message handling with proper error handling and logging
+
+**3. Intent-Driven Workflow**
+```
+Voice Input → Intent Analysis → Skill Processing (distributed) → Response/Action
+```
+
+**4. Location-Aware Processing**
+- `ClientRequest.room`: Where command originated (e.g., "kitchen")  
+- `IntentAnalysisResult.rooms`: Target locations (e.g., "living room" for "close curtains in living room")
+- Skills use `ClientRequest.room` as fallback when no specific room mentioned
+
+**5. Task Management & Concurrency**
+- Skills use `asyncio.TaskGroup` for spawning concurrent tasks (timers, background operations)
+- Pattern: Decouple MQTT handling from business logic via task spawning
+- Example: Timer skill spawns sleep task before sending alert
+
+**6. Optional Persistence**
+- `PostgresConfig` for skills requiring persistence (e.g., Spotify tokens across restarts)
+- Not all skills need database - commons provides the option
+
+**7. Audio Feedback System**
+- `Alert` class with `play_before`/`play_after` sound options
+- Handled by separate voice bridge (FastAPI WebSocket + local client)
+- Configurable sound files for user feedback
+
+### Evolution Notes
+- Originally had central coordinator for skill selection (removed for latency reduction)
+- `intent_analysis_results` dict in BaseSkill is legacy but still useful for delayed processing
+- UUID-based message lookup optimized for O(1) performance
+
 ---
 
 ## Tech Stack
