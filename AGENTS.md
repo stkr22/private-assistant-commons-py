@@ -1,4 +1,4 @@
-# Claude.md
+# AGENTS.md
 
 *Last updated 2025-07-15*  
 
