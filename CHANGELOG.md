@@ -1,3 +1,9 @@
+## v3.2.0 (2025-07-22)
+
+### Feat
+
+- enhance MQTT error handling and task lifecycle management
+
 ## v3.1.0 (2025-07-22)
 
 ### Feat
