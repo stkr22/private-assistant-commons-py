@@ -211,6 +211,9 @@ mqtt_server_port: 1883
 client_id: "weather_skill"
 base_topic: "assistant"
 
+# Performance tuning
+intent_cache_size: 2000  # Increase for high-volume skills
+
 # Skill-specific settings
 api_key: "your-api-key-here"
 default_location: "San Francisco"
@@ -356,6 +359,30 @@ async def process_request(self, intent_analysis_result: IntentAnalysisResult) ->
         self.logger.error("Unexpected error: %s", e, exc_info=True)
         await self.send_response("Sorry, something went wrong", client_request)
 ```
+
+## Performance Tuning
+
+### Cache Configuration
+
+The `intent_cache_size` parameter controls memory usage and performance:
+
+```yaml
+# For low-traffic skills (default)
+intent_cache_size: 1000
+
+# For high-traffic skills
+intent_cache_size: 5000
+
+# For memory-constrained environments
+intent_cache_size: 500
+```
+
+**Guidelines:**
+- **Default (1000)**: Suitable for most skills processing <100 messages/hour
+- **High-traffic (5000+)**: Skills processing >500 messages/hour or requiring delayed processing
+- **Low-memory (500)**: Resource-constrained deployments or IoT devices
+
+The cache uses LRU eviction - older entries are automatically removed when the limit is reached, preventing memory leaks while maintaining fast O(1) lookup performance.
 
 ## Testing Skills
 

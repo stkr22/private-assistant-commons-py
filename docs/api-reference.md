@@ -107,6 +107,7 @@ Add a coroutine as a new task to the skill's task group for concurrent execution
 - **logger** (`logging.Logger`): Logger instance
 - **certainty_threshold** (`float`): Minimum certainty threshold
 - **default_alert** (`Alert`): Default alert configuration
+- **intent_analysis_results** (`BoundedDict`): LRU cache for intent analysis results with automatic eviction to prevent memory leaks
 
 ## Message Models
 
@@ -210,6 +211,7 @@ class SkillConfig(BaseModel):
     base_topic: str = "assistant"
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
     broadcast_topic: str = "assistant/comms_bridge/broadcast"
+    intent_cache_size: int = 1000
 ```
 
 **Attributes:**
@@ -219,6 +221,7 @@ class SkillConfig(BaseModel):
 - **base_topic**: Base MQTT topic prefix
 - **intent_analysis_result_topic**: Topic for receiving intent analysis results
 - **broadcast_topic**: Topic for broadcasting responses to all clients
+- **intent_cache_size**: Maximum number of intent analysis results to cache (default: 1000)
 
 **Properties:**
 - **feedback_topic** (`str`): Generated topic for skill feedback: `{base_topic}/{client_id}/feedback`

@@ -1,3 +1,9 @@
+## v3.1.0 (2025-07-22)
+
+### Feat
+
+- implement performance and concurrency improvements
+
 ## v3.0.2 (2025-07-20)
 
 ### Fix

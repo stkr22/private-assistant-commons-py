@@ -29,6 +29,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         self.mock_config.broadcast_topic = "test/broadcast"
         self.mock_config.mqtt_server_host = "localhost"
         self.mock_config.mqtt_server_port = 1883
+        self.mock_config.intent_cache_size = 1000
         self.mock_logger = Mock(logging.Logger)
         self.default_alert = messages.Alert(play_before=True)
 
@@ -70,9 +71,20 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         mock_mqtt_client = Mock()
         mock_mqtt_client.messages = async_generator()
 
-        with patch.object(self.skill, "handle_client_request_message") as mock_handle_client_request:
+        # Mock the add_task method to capture the spawned task
+        with patch.object(self.skill, "add_task") as mock_add_task:
             await self.skill.listen_to_messages(mock_mqtt_client)
-            mock_handle_client_request.assert_called_once_with('{"id": "12345678-1234-5678-1234-567812345678"}')
+            
+            # Verify that add_task was called once
+            mock_add_task.assert_called_once()
+            
+            # Get the coroutine that was passed to add_task and execute it
+            called_coro = mock_add_task.call_args[0][0]
+            
+            # Execute the coroutine to test the message handling
+            with patch.object(self.skill, "handle_client_request_message") as mock_handle_client_request:
+                await called_coro
+                mock_handle_client_request.assert_called_once_with('{"id": "12345678-1234-5678-1234-567812345678"}')
 
     async def test_add_text_to_output_topic_with_alert(self):
         mock_request = Mock(spec=messages.ClientRequest)

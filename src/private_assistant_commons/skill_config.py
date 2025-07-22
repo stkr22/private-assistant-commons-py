@@ -46,6 +46,7 @@ class SkillConfig(BaseModel):
     base_topic: str = "assistant"
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
     broadcast_topic: str = "assistant/comms_bridge/broadcast"
+    intent_cache_size: int = Field(default=1000, description="Maximum number of intent analysis results to cache")
 
     @property
     def feedback_topic(self) -> str:

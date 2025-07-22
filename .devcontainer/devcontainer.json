@@ -1,12 +1,12 @@
 {
 	"name": "private-assistant-commons-dev-environment",
-	"build":
-		{
-			"dockerfile": "Containerfile",
-			"context": "."
-		},
+	"build": {
+		"dockerfile": "Containerfile",
+		"context": "."
+	},
 	"features": {
-		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+		"ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+		"ghcr.io/devcontainers/features/github-cli:1": {}
 	},
 	"customizations": {
 		"vscode": {
@@ -40,7 +40,7 @@
 	},
 	"containerEnv": {
 		"HOME": "/home/vscode",
-    	"CLAUDE_CONFIG_DIR": "/home/node/.claude",
+		"CLAUDE_CONFIG_DIR": "/home/node/.claude",
 		"POWERLEVEL9K_DISABLE_GITSTATUS": "true"
 	},
 	"mounts": [
