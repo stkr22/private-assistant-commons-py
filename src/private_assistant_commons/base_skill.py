@@ -1,7 +1,13 @@
 import asyncio
 import logging
+import weakref
 from abc import ABC, abstractmethod
 from collections import OrderedDict
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
+from functools import partial
+from typing import Any
 
 import aiomqtt
 from pydantic import ValidationError
@@ -50,6 +56,21 @@ class BaseSkill(ABC):
     - Task management: Uses asyncio.TaskGroup for concurrent operations
     - Location awareness: Supports room-based command routing
     """
+    
+    class MqttErrorType(Enum):
+        """Categorize MQTT errors for better handling and recovery."""
+        CONNECTION_LOST = "connection_lost"
+        PUBLISH_FAILED = "publish_failed"
+        TIMEOUT = "timeout"
+        VALIDATION_ERROR = "validation_error"
+
+    @dataclass
+    class TaskInfo:
+        """Track information about active tasks for monitoring and debugging."""
+        name: str
+        created_at: datetime
+        task_ref: weakref.ReferenceType
+        metadata: dict[str, Any]
     def __init__(
         self,
         config_obj: skill_config.SkillConfig,
@@ -78,6 +99,10 @@ class BaseSkill(ABC):
         self.task_group: asyncio.TaskGroup = task_group
         self.logger = logger or skill_logger.SkillLogger.get_logger(__name__)
         self.default_alert = messages.Alert(play_before=True)
+        
+        # AIDEV-NOTE: Task lifecycle management for monitoring and debugging
+        self._active_tasks: dict[int, BaseSkill.TaskInfo] = {}
+        self._task_counter = 0
 
     def decode_message_payload(self, payload) -> str | None:
         """Decode MQTT message payload to string.
@@ -222,66 +247,50 @@ class BaseSkill(ABC):
         response_text: str,
         client_request: messages.ClientRequest,
         alert: messages.Alert | None = None,
-    ) -> None:
-        """Send a response to a specific client request.
+    ) -> bool:
+        """Send a response to a specific client request with retry logic.
         
         Args:
             response_text: Text response to send
             client_request: Original request containing output topic
             alert: Optional audio alert configuration
             
+        Returns:
+            bool: True if response was successfully published, False otherwise
+            
         Publishes response to the client-specific output topic for targeted delivery.
+        Uses exponential backoff retry logic for improved reliability.
         """
-        """Publish a response using the Response message model."""
-        response = messages.Response(text=response_text, alert=alert)
-        try:
-            self.logger.debug("Publishing response as JSON to topic '%s'.", client_request.output_topic)
-            await self.mqtt_client.publish(
-                topic=client_request.output_topic,
-                payload=response.model_dump_json(exclude_none=True),
-                qos=1,
-                retain=False,
-            )
-            self.logger.info("Published response to topic '%s'.", client_request.output_topic)
-        except asyncio.CancelledError:
-            self.logger.warning("Publishing to topic '%s' was cancelled.", client_request.output_topic)
-            raise
-        except Exception as e:
-            self.logger.error(
-                "Failed to publish response to topic '%s': %s", client_request.output_topic, e, exc_info=True
-            )
+        return await self._send_response_with_retry(
+            response_text=response_text,
+            topic=client_request.output_topic,
+            alert=alert,
+            operation="send_response"
+        )
 
     async def broadcast_response(
         self,
         response_text: str,
         alert: messages.Alert | None = None,
-    ) -> None:
-        """Broadcast a response to all connected clients.
+    ) -> bool:
+        """Broadcast a response to all connected clients with retry logic.
         
         Args:
             response_text: Text response to broadcast
             alert: Optional audio alert configuration
             
+        Returns:
+            bool: True if broadcast was successfully published, False otherwise
+            
         Publishes response to the global broadcast topic for system-wide announcements.
+        Uses exponential backoff retry logic for improved reliability.
         """
-        """Broadcast a response using the Response message model."""
-        response = messages.Response(text=response_text, alert=alert)
-        try:
-            self.logger.debug("Broadcasting response as JSON to topic '%s'.", self.config_obj.broadcast_topic)
-            await self.mqtt_client.publish(
-                topic=self.config_obj.broadcast_topic,
-                payload=response.model_dump_json(exclude_none=True),
-                qos=1,
-                retain=False,
-            )
-            self.logger.info("Broadcast response to topic '%s'.", self.config_obj.broadcast_topic)
-        except asyncio.CancelledError:
-            self.logger.warning("Broadcast to topic '%s' was cancelled.", self.config_obj.broadcast_topic)
-            raise
-        except Exception as e:
-            self.logger.error(
-                "Failed to broadcast response to topic '%s': %s", self.config_obj.broadcast_topic, e, exc_info=True
-            )
+        return await self._send_response_with_retry(
+            response_text=response_text,
+            topic=self.config_obj.broadcast_topic,
+            alert=alert,
+            operation="broadcast_response"
+        )
 
     # AIDEV-NOTE: Convenience method that unifies send_response and broadcast_response
     async def publish_with_alert(
@@ -320,20 +329,201 @@ class BaseSkill(ABC):
         else:
             raise ValueError("client_request must be provided if broadcast is False.")
 
-    def add_task(self, coro) -> asyncio.Task:
-        """Add a coroutine as a new task to the skill's task group.
+    # AIDEV-NOTE: Enhanced error handling with retry logic and error categorization
+    async def _send_response_with_retry(
+        self,
+        response_text: str,
+        topic: str,
+        alert: messages.Alert | None = None,
+        operation: str = "mqtt_publish",
+        max_retries: int = 3,
+    ) -> bool:
+        """Send MQTT response with exponential backoff retry logic.
         
         Args:
-            coro: Coroutine to execute concurrently
+            response_text: Text response to send
+            topic: MQTT topic to publish to
+            alert: Optional audio alert configuration
+            operation: Operation name for logging context
+            max_retries: Maximum number of retry attempts
             
         Returns:
-            Created asyncio.Task
+            bool: True if response was successfully published, False otherwise
+        """
+        response = messages.Response(text=response_text, alert=alert)
+        last_error_type = None
+        
+        for attempt in range(max_retries + 1):
+            try:
+                self.logger.debug(
+                    "%s: Publishing to topic '%s' (attempt %d/%d)",
+                    operation, topic, attempt + 1, max_retries + 1
+                )
+                
+                # Add timeout to prevent hanging
+                await asyncio.wait_for(
+                    self.mqtt_client.publish(
+                        topic=topic,
+                        payload=response.model_dump_json(exclude_none=True),
+                        qos=1,
+                        retain=False,
+                    ),
+                    timeout=5.0
+                )
+                
+                self.logger.info(
+                    "%s: Successfully published to topic '%s' (attempt %d)",
+                    operation, topic, attempt + 1
+                )
+                return True
+                
+            except asyncio.CancelledError:
+                self.logger.warning("%s: Publishing to topic '%s' was cancelled", operation, topic)
+                raise
+                
+            except TimeoutError:
+                last_error_type = self.MqttErrorType.TIMEOUT
+                self.logger.warning(
+                    "%s: Publish timeout to topic '%s' (attempt %d/%d)",
+                    operation, topic, attempt + 1, max_retries + 1
+                )
+                
+            except aiomqtt.MqttError as e:
+                last_error_type = self.MqttErrorType.CONNECTION_LOST
+                self.logger.error(
+                    "%s: MQTT error to topic '%s' (attempt %d/%d): %s",
+                    operation, topic, attempt + 1, max_retries + 1, e
+                )
+                
+            except Exception as e:
+                last_error_type = self.MqttErrorType.PUBLISH_FAILED
+                self.logger.error(
+                    "%s: Unexpected error to topic '%s' (attempt %d/%d): %s",
+                    operation, topic, attempt + 1, max_retries + 1, e,
+                    exc_info=True
+                )
+            
+            # Exponential backoff before retry (skip on last attempt)
+            if attempt < max_retries:
+                delay = min(2 ** attempt, 10)  # Cap at 10 seconds
+                self.logger.debug("%s: Retrying in %.1f seconds", operation, delay)
+                await asyncio.sleep(delay)
+        
+        # All retries failed - handle gracefully
+        await self._handle_publish_failure(last_error_type, operation, topic, response_text)
+        return False
+    
+    async def _handle_publish_failure(
+        self,
+        error_type: MqttErrorType | None,
+        operation: str,
+        topic: str,
+        response_text: str,
+    ) -> None:
+        """Handle persistent publish failures with appropriate recovery strategies.
+        
+        Args:
+            error_type: Type of error that caused the failure
+            operation: Operation that failed for logging context
+            topic: MQTT topic that failed
+            response_text: Response text that failed to send
+        """
+        self.logger.error(
+            "%s: All retry attempts failed for topic '%s'. Error type: %s. Response: '%.100s'",
+            operation, topic, error_type.value if error_type else "unknown", response_text
+        )
+        
+        # Future enhancement: Could implement fallback strategies here
+        # - Store failed messages for later retry
+        # - Send to alternative topic
+        # - Trigger reconnection logic
+        # - Update skill health status
+
+    # AIDEV-NOTE: Enhanced task management with lifecycle monitoring and cleanup
+    def add_task(self, coro: Any, name: str | None = None, **metadata: Any) -> asyncio.Task[Any]:
+        """Add a task with monitoring and lifecycle management.
+        
+        Args:
+            coro: Coroutine to execute as a background task
+            name: Optional name for the task (defaults to coroutine name)
+            **metadata: Additional metadata for monitoring and debugging
+            
+        Returns:
+            asyncio.Task: Created task with lifecycle tracking
             
         Common use cases:
-        - Spawn timer tasks for delayed responses
+        - Spawn timer tasks for delayed responses  
         - Background processing that shouldn't block message handling
         - Concurrent API calls or database operations
+        
+        The task is automatically tracked and cleaned up on completion.
         """
-        """Add a new task to the task group and return it."""
-        self.logger.info("Adding new task to the task group.")
-        return self.task_group.create_task(coro)
+        if name is None:
+            name = getattr(coro, '__name__', f'anonymous_coro_{id(coro)}')
+            
+        task = self.task_group.create_task(coro, name=f"{name}_{self._task_counter}")
+        
+        # Store task info for monitoring
+        task_info = self.TaskInfo(
+            name=name,
+            created_at=datetime.now(),
+            task_ref=weakref.ref(task),
+            metadata=metadata
+        )
+        self._active_tasks[self._task_counter] = task_info
+        
+        # Add completion callback for cleanup
+        task.add_done_callback(partial(self._task_completed, self._task_counter))
+        
+        self.logger.info("Added task '%s' (#%d)", name, self._task_counter)
+        self._task_counter += 1
+        return task
+        
+    def _task_completed(self, task_id: int, task: asyncio.Task) -> None:
+        """Handle task completion and cleanup.
+        
+        Args:
+            task_id: Internal task identifier
+            task: Completed task
+        """
+        task_info = self._active_tasks.pop(task_id, None)
+        if not task_info:
+            return
+            
+        duration = datetime.now() - task_info.created_at
+        
+        if task.exception():
+            self.logger.error(
+                "Task '%s' (#%d) failed after %s: %s", 
+                task_info.name, task_id, duration, task.exception(),
+                exc_info=task.exception()
+            )
+        else:
+            self.logger.debug(
+                "Task '%s' (#%d) completed successfully after %s", 
+                task_info.name, task_id, duration
+            )
+    
+    def get_active_task_count(self) -> int:
+        """Get number of currently active tasks."""
+        return len(self._active_tasks)
+        
+    def get_task_stats(self) -> dict[str, Any]:
+        """Get comprehensive task statistics for monitoring.
+        
+        Returns:
+            Dict containing task statistics and active task details
+        """
+        return {
+            "active_count": len(self._active_tasks),
+            "total_created": self._task_counter,
+            "active_tasks": [
+                {
+                    "id": task_id,
+                    "name": info.name,
+                    "age_seconds": (datetime.now() - info.created_at).total_seconds(),
+                    "metadata": info.metadata
+                }
+                for task_id, info in self._active_tasks.items()
+            ]
+        }
