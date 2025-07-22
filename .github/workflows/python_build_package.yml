@@ -1,4 +1,4 @@
-name: Python Build Package
+name: Build and upload release to PyPI
 
 on:
   push:
@@ -6,8 +6,13 @@ on:
       - 'v*'
 
 jobs:
-  build:
+  build_and_publish_to_pypi:
+    name: Build and upload release to PyPI
     runs-on: ubuntu-latest
+
+    environment:
+      name: Publish_to_PyPI
+
     permissions:
       id-token: write
     steps:
