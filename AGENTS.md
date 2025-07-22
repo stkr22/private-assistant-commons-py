@@ -72,8 +72,9 @@ Voice Input → Intent Analysis → Skill Processing (distributed) → Response/
 
 ### Evolution Notes
 - Originally had central coordinator for skill selection (removed for latency reduction)
-- `intent_analysis_results` dict in BaseSkill is legacy but still useful for delayed processing
-- UUID-based message lookup optimized for O(1) performance
+- `intent_analysis_results` now uses bounded LRU cache to prevent memory leaks while maintaining O(1) performance
+- Concurrent message processing added for improved throughput
+- Thread-safe cache access ensures data integrity during concurrent operations
 
 ---
 
