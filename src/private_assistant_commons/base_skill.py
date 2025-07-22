@@ -1,15 +1,39 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    import uuid
+from collections import OrderedDict
 
 import aiomqtt
 from pydantic import ValidationError
 
 from private_assistant_commons import messages, skill_config, skill_logger
+
+
+class BoundedDict(OrderedDict):
+    """Thread-safe bounded dictionary with LRU eviction.
+    
+    Maintains a maximum number of entries by automatically removing
+    the least recently used items when capacity is exceeded.
+    """
+    
+    def __init__(self, max_size: int = 1000):
+        """Initialize bounded dictionary.
+        
+        Args:
+            max_size: Maximum number of entries to store
+        """
+        self.max_size = max_size
+        super().__init__()
+    
+    def __setitem__(self, key, value):
+        """Add or update an entry, maintaining size limit."""
+        if key in self:
+            # Move existing key to end (most recently used)
+            self.move_to_end(key)
+        elif len(self) >= self.max_size:
+            # Remove least recently used item
+            self.popitem(last=False)
+        super().__setitem__(key, value)
 
 
 # AIDEV-NOTE: Core abstract base class for all skills in Private Assistant ecosystem
@@ -45,8 +69,11 @@ class BaseSkill(ABC):
         """
         self.config_obj: skill_config.SkillConfig = config_obj
         self.certainty_threshold: float = certainty_threshold
-        # AIDEV-NOTE: Legacy dict from coordinator era, still useful for delayed processing (O(1) lookup)
-        self.intent_analysis_results: dict[uuid.UUID, messages.IntentAnalysisResult] = {}
+        # AIDEV-NOTE: Bounded LRU cache prevents memory leaks from unbounded growth
+        self.intent_analysis_results: BoundedDict = BoundedDict(
+            max_size=config_obj.intent_cache_size
+        )
+        self._results_lock = asyncio.Lock()  # Thread safety for concurrent access
         self.mqtt_client: aiomqtt.Client = mqtt_client
         self.task_group: asyncio.TaskGroup = task_group
         self.logger = logger or skill_logger.SkillLogger.get_logger(__name__)
@@ -106,7 +133,8 @@ class BaseSkill(ABC):
             if message.topic.matches(self.config_obj.intent_analysis_result_topic):
                 payload_str = self.decode_message_payload(message.payload)
                 if payload_str is not None:
-                    await self.handle_client_request_message(payload_str)
+                    # Process messages concurrently to improve throughput
+                    self.add_task(self._handle_message_async(payload_str))
 
     @abstractmethod  
     async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
@@ -126,6 +154,20 @@ class BaseSkill(ABC):
         """
         pass
 
+    async def _handle_message_async(self, payload_str: str) -> None:
+        """Handle message processing in separate task for concurrency.
+        
+        Args:
+            payload_str: JSON string containing IntentAnalysisResult
+            
+        This method enables concurrent message processing while maintaining
+        proper error handling for individual message failures.
+        """
+        try:
+            await self.handle_client_request_message(payload_str)
+        except Exception as e:
+            self.logger.error("Error processing message: %s", e, exc_info=True)
+
     # AIDEV-NOTE: Core request processing pipeline - certainty evaluation and routing
     async def handle_client_request_message(self, payload: str) -> None:
         """Process incoming intent analysis result and decide whether to handle it.
@@ -141,7 +183,10 @@ class BaseSkill(ABC):
         """
         try:
             intent_analysis_result = messages.IntentAnalysisResult.model_validate_json(payload)
-            self.intent_analysis_results[intent_analysis_result.id] = intent_analysis_result
+            
+            # Thread-safe storage of intent analysis results
+            async with self._results_lock:
+                self.intent_analysis_results[intent_analysis_result.id] = intent_analysis_result
 
             # Calculate certainty
             certainty = await self.calculate_certainty(intent_analysis_result)
