@@ -1,8 +1,8 @@
 # AGENTS.md
 
-*Last updated 2025-07-15*  
+*Last updated 2025-07-15*
 
-> **purpose** – This file is the onboarding manual for every AI assistant (Claude, Cursor, GPT, etc.) and every human who edits this repository.  
+> **purpose** – This file is the onboarding manual for every AI assistant (Claude, Cursor, GPT, etc.) and every human who edits this repository.
 > It encodes coding standards, guard-rails, and workflow tricks so the *human 30 %* (architecture, tests, domain judgment) stays in human hands.[^1]
 
 ---
@@ -52,7 +52,7 @@ Voice Input → Intent Analysis → Skill Processing (distributed) → Response/
 ```
 
 **4. Location-Aware Processing**
-- `ClientRequest.room`: Where command originated (e.g., "kitchen")  
+- `ClientRequest.room`: Where command originated (e.g., "kitchen")
 - `IntentAnalysisResult.rooms`: Target locations (e.g., "living room" for "close curtains in living room")
 - Skills use `ClientRequest.room` as fallback when no specific room mentioned
 
@@ -168,7 +168,7 @@ async def render_feed(...):
 
 - **Granular commits**: One logical change per commit.
 - **Tag AI-generated commits**: e.g., `feat: optimise feed query [AI]`.
-- **Clear commit messages**: Explain the *why*; link to issues/ADRs if architectural.
+- **Clear commit messages**: Explain the *why*; link to issues/ADRs if architectural. If an issue is fixed reference it as closes #XX. One reference per issue.
 - **Use `git worktree`** for parallel/long-running AI branches (e.g., `git worktree add ../wip-foo -b wip-foo`).
 - **Review AI-generated code**: Never merge code you don't understand.
 - **Always use conventional commit standard with gitmoji**: e.g. "feat:" "perf: :zap:"
