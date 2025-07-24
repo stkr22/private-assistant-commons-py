@@ -74,13 +74,13 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         # Mock the add_task method to capture the spawned task
         with patch.object(self.skill, "add_task") as mock_add_task:
             await self.skill.listen_to_messages(mock_mqtt_client)
-            
+
             # Verify that add_task was called once
             mock_add_task.assert_called_once()
-            
+
             # Get the coroutine that was passed to add_task and execute it
             called_coro = mock_add_task.call_args[0][0]
-            
+
             # Execute the coroutine to test the message handling
             with patch.object(self.skill, "handle_client_request_message") as mock_handle_client_request:
                 await called_coro

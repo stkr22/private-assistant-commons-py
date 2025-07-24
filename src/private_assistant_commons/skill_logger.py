@@ -1,4 +1,5 @@
 """Centralized logging configuration for Private Assistant skills."""
+
 from __future__ import annotations
 
 import logging
@@ -14,6 +15,7 @@ from rich.theme import Theme
 @dataclass
 class LoggerConfig:
     """Configuration for rich logger options."""
+
     show_time: bool = True
     show_path: bool = False
     enable_link_path: bool = True
@@ -23,37 +25,39 @@ class LoggerConfig:
 
 class SkillLogger:
     """Utility class for creating standardized loggers for skills with rich visual enhancements."""
-    
+
     # AIDEV-NOTE: Custom theme for consistent Private Assistant branding
-    _SKILL_THEME = Theme({
-        "logging.level.debug": "cyan",
-        "logging.level.info": "green",
-        "logging.level.warning": "yellow",
-        "logging.level.error": "red bold",
-        "logging.level.critical": "red on white bold",
-        "logging.keyword": "bold blue",
-        "logging.string": "magenta",
-        "logging.number": "bright_blue",
-        "repr.path": "magenta",
-        "repr.filename": "bright_magenta bold",
-    })
-    
+    _SKILL_THEME = Theme(
+        {
+            "logging.level.debug": "cyan",
+            "logging.level.info": "green",
+            "logging.level.warning": "yellow",
+            "logging.level.error": "red bold",
+            "logging.level.critical": "red on white bold",
+            "logging.keyword": "bold blue",
+            "logging.string": "magenta",
+            "logging.number": "bright_blue",
+            "repr.path": "magenta",
+            "repr.filename": "bright_magenta bold",
+        }
+    )
+
     @staticmethod
     def get_logger(
-        name: str, 
+        name: str,
         level: int | None = None,
         config: LoggerConfig | None = None,
     ) -> logging.Logger:
         """Create a configured logger with rich visual enhancements.
-        
+
         Args:
             name: Logger name (typically __name__ from calling module)
             level: Optional log level override, defaults to LOG_LEVEL env var or INFO
             config: Optional LoggerConfig instance for rich formatting options
-            
+
         Returns:
             Configured logger with RichHandler and enhanced visual formatting
-            
+
         Environment Variables:
             LOG_LEVEL: Sets default log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
             RICH_NO_COLOR: Set to disable colored output (useful for CI/CD)
@@ -79,7 +83,7 @@ class SkillLogger:
                     force_terminal=None,  # Auto-detect terminal capabilities
                     no_color=os.getenv("RICH_NO_COLOR") is not None,
                 )
-            
+
             # AIDEV-NOTE: RichHandler provides colored output, structured formatting, and enhanced tracebacks
             rich_handler = RichHandler(
                 console=console,
@@ -90,7 +94,7 @@ class SkillLogger:
                 tracebacks_show_locals=level <= logging.DEBUG,  # Show local vars only in debug mode
                 markup=True,  # Enable rich markup in log messages
             )
-            
+
             # Custom format for skill logging with skill name highlighting
             rich_handler.setFormatter(
                 logging.Formatter(
@@ -98,11 +102,11 @@ class SkillLogger:
                     datefmt="[%X]",
                 )
             )
-            
+
             logger.addHandler(rich_handler)
 
         return logger
-    
+
     @staticmethod
     def get_console_logger(
         name: str,
@@ -111,28 +115,28 @@ class SkillLogger:
         config: LoggerConfig | None = None,
     ) -> logging.Logger:
         """Create a logger that uses a specific Console instance.
-        
+
         Args:
             name: Logger name
             console: Console instance to use for output
             level: Optional log level override
             config: Optional LoggerConfig instance, console will be overridden
-            
+
         Returns:
             Logger configured with the provided Console instance
         """
         if config is None:
             config = LoggerConfig()
-        
+
         # Override console in config
         config.console = console
-        
+
         return SkillLogger.get_logger(
             name=name,
             level=level,
             config=config,
         )
-    
+
     @staticmethod
     def create_skill_console(
         width: int | None = None,
@@ -140,12 +144,12 @@ class SkillLogger:
         **console_kwargs: Any,
     ) -> Console:
         """Create a Console instance optimized for skill logging.
-        
+
         Args:
             width: Console width, defaults to auto-detection
             force_terminal: Force terminal mode, defaults to auto-detection
             **console_kwargs: Additional arguments passed to Console
-            
+
         Returns:
             Configured Console instance with skill-specific theme
         """
