@@ -4,6 +4,19 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [3.6.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.5.0...v3.6.0) (2025-07-24)
+
+
+### Features
+
+* implement comprehensive testing and metrics for Issues [#48](https://github.com/stkr22/private-assistant-commons-py/issues/48), [#49](https://github.com/stkr22/private-assistant-commons-py/issues/49) ([14a56ec](https://github.com/stkr22/private-assistant-commons-py/commit/14a56ec9e579122290159eade34ac2f199a8d13f))
+* Phase 3 - Testing & Monitoring (Issues [#48](https://github.com/stkr22/private-assistant-commons-py/issues/48), [#49](https://github.com/stkr22/private-assistant-commons-py/issues/49)) ([244689c](https://github.com/stkr22/private-assistant-commons-py/commit/244689c6209f39509ba0685900649b9ba91ef45a))
+
+
+### Bug Fixes
+
+* resolve linting and type issues, add metrics documentation ([626db48](https://github.com/stkr22/private-assistant-commons-py/commit/626db48c1d7353cefcd30e39c91505d77e035a62))
+
 ## [3.5.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.4.0...v3.5.0) (2025-07-24)
 
 
