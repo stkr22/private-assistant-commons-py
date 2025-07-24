@@ -17,6 +17,7 @@ Common utilities and base classes for building distributed voice assistant skill
 - **MQTT Communication**: Structured message handling using Pydantic models with automatic reconnection
 - **Location Awareness**: Support for room-based command routing and targeting
 - **Audio Integration**: Configurable alerts and responses through voice bridge system
+- **Performance Metrics**: Built-in monitoring with Prometheus export and health checking for production deployments
 - **Optional Persistence**: PostgreSQL integration for skills requiring state storage
 
 ## Quick Start

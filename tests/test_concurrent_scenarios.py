@@ -11,6 +11,13 @@ import pytest
 from private_assistant_commons import messages, skill_config
 from private_assistant_commons.base_skill import BaseSkill
 
+# Test constants
+CACHE_SIZE_LIMIT = 50
+EXPECTED_RETRY_COUNT = 3
+EXPECTED_TOTAL_ATTEMPTS = 4  # Initial + 3 retries
+MIN_SUCCESS_COUNT = 2
+MIN_THROUGHPUT = 50
+
 
 class TestConcurrentSkill(BaseSkill):
     """Test skill implementation for concurrent testing."""
@@ -24,7 +31,7 @@ class TestConcurrentSkill(BaseSkill):
         """Test implementation of skill preparations."""
         pass
         
-    async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
+    async def calculate_certainty(self, _intent_analysis_result: messages.IntentAnalysisResult) -> float:
         # Add small delay to simulate real processing
         await asyncio.sleep(0.001)
         return 0.9
@@ -110,7 +117,7 @@ class TestConcurrentProcessing:
         )
         
         # Set smaller cache size for testing
-        skill.intent_analysis_results.max_size = 50
+        skill.intent_analysis_results.max_size = CACHE_SIZE_LIMIT
         
         # Process more messages than cache size
         message_count = 75
@@ -135,7 +142,7 @@ class TestConcurrentProcessing:
         await asyncio.gather(*tasks)
         
         # Verify cache size is bounded
-        assert len(skill.intent_analysis_results) <= 50
+        assert len(skill.intent_analysis_results) <= CACHE_SIZE_LIMIT
         assert len(skill.processed_messages) == message_count
     
     @pytest.mark.asyncio 
@@ -201,9 +208,9 @@ class TestConcurrentProcessing:
             """Create multiple tasks from this coroutine."""
             tasks = []
             for i in range(3):
-                async def worker_task():
+                async def worker_task(task_index: int = i):
                     await asyncio.sleep(0.001)
-                    return f"creator_{creator_id}_task_{i}"
+                    return f"creator_{creator_id}_task_{task_index}"
                 
                 task = skill.add_task(worker_task(), name=f"creator_{creator_id}_task_{i}")
                 tasks.append(task)
@@ -268,7 +275,7 @@ class TestMqttErrorRecovery:
         
         # Verify retry occurred and eventually succeeded
         assert success is True
-        assert mock_mqtt_client.publish.call_count == 3
+        assert mock_mqtt_client.publish.call_count == EXPECTED_RETRY_COUNT
     
     @pytest.mark.asyncio
     async def test_mqtt_publish_failure_handling(self):
@@ -297,7 +304,7 @@ class TestMqttErrorRecovery:
         
         # Verify failure was handled gracefully
         assert success is False
-        assert mock_mqtt_client.publish.call_count == 4  # Initial + 3 retries
+        assert mock_mqtt_client.publish.call_count == EXPECTED_TOTAL_ATTEMPTS  # Initial + 3 retries
     
     @pytest.mark.asyncio
     async def test_concurrent_mqtt_operations(self):
@@ -343,7 +350,7 @@ class TestMqttErrorRecovery:
         
         # Verify results (some should succeed after retries)
         success_count = sum(1 for result in results if result)
-        assert success_count >= 2  # At least 2 should succeed
+        assert success_count >= MIN_SUCCESS_COUNT  # At least 2 should succeed
         
         # Verify retry attempts were made
         assert mock_mqtt_client.publish.call_count >= len(client_requests)
@@ -415,7 +422,7 @@ class TestPerformanceUnderLoad:
         
         # Verify reasonable throughput (messages per second)
         throughput = message_count / processing_time
-        assert throughput > 50, f"Throughput {throughput:.1f} msg/s is too low"
+        assert throughput > MIN_THROUGHPUT, f"Throughput {throughput:.1f} msg/s is too low"
         
         # Verify cache management worked correctly
         assert len(skill.intent_analysis_results) <= skill.intent_analysis_results.max_size

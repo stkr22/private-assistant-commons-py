@@ -15,6 +15,14 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+# AIDEV-NOTE: Health check threshold constants for monitoring
+MESSAGE_SUCCESS_RATE_THRESHOLD = 0.95
+MQTT_SUCCESS_RATE_THRESHOLD = 0.98
+CRITICAL_ERROR_RATE_THRESHOLD = 0.1
+WARNING_ERROR_RATE_THRESHOLD = 0.01
+MAX_LATENCY_MS_THRESHOLD = 1000
+CACHE_HIT_RATE_THRESHOLD = 0.8
+
 
 @dataclass
 class PerformanceMetrics:
@@ -424,65 +432,69 @@ class HealthChecker:
             Health status dictionary with issues and recommendations
         """
         summary = self.metrics.get_metrics_summary()
-        health_status = {
+        health_status: dict[str, Any] = {
             "overall_status": "healthy",
             "checks": {},
             "alerts": [],
             "recommendations": []
         }
         
+        alerts: list[str] = health_status["alerts"]
+        recommendations: list[str] = health_status["recommendations"]
+        checks: dict[str, str] = health_status["checks"]
+        
         # Check message processing health
         msg_success_rate = summary["message_processing"]["success_rate"]
-        if msg_success_rate < 0.95:
-            health_status["checks"]["message_processing"] = "degraded"
-            health_status["alerts"].append(
-                f"Message success rate is {msg_success_rate:.1%} (below 95% threshold)"
+        if msg_success_rate < MESSAGE_SUCCESS_RATE_THRESHOLD:
+            checks["message_processing"] = "degraded"
+            alerts.append(
+                f"Message success rate is {msg_success_rate:.1%} (below {MESSAGE_SUCCESS_RATE_THRESHOLD:.0%} threshold)"
             )
             health_status["overall_status"] = "degraded"
         else:
-            health_status["checks"]["message_processing"] = "healthy"
+            checks["message_processing"] = "healthy"
         
         # Check MQTT operation health
         mqtt_success_rate = summary["mqtt_operations"]["success_rate"]
-        if mqtt_success_rate < 0.98:
-            health_status["checks"]["mqtt_operations"] = "degraded"
-            health_status["alerts"].append(
-                f"MQTT success rate is {mqtt_success_rate:.1%} (below 98% threshold)"
+        if mqtt_success_rate < MQTT_SUCCESS_RATE_THRESHOLD:
+            checks["mqtt_operations"] = "degraded"
+            alerts.append(
+                f"MQTT success rate is {mqtt_success_rate:.1%} (below {MQTT_SUCCESS_RATE_THRESHOLD:.0%} threshold)"
             )
             health_status["overall_status"] = "degraded"
         else:
-            health_status["checks"]["mqtt_operations"] = "healthy"
+            checks["mqtt_operations"] = "healthy"
         
         # Check error rate
         error_rate = summary["system_health"]["error_rate"]
-        if error_rate > 0.1:  # More than 0.1 errors per second
-            health_status["checks"]["error_rate"] = "critical"
-            health_status["alerts"].append(
+        if error_rate > CRITICAL_ERROR_RATE_THRESHOLD:
+            checks["error_rate"] = "critical"
+            alerts.append(
                 f"High error rate: {error_rate:.3f} errors/second"
             )
             health_status["overall_status"] = "critical"
-        elif error_rate > 0.01:
-            health_status["checks"]["error_rate"] = "warning"
-            health_status["alerts"].append(
+        elif error_rate > WARNING_ERROR_RATE_THRESHOLD:
+            checks["error_rate"] = "warning"
+            alerts.append(
                 f"Elevated error rate: {error_rate:.3f} errors/second"
             )
         else:
-            health_status["checks"]["error_rate"] = "healthy"
+            checks["error_rate"] = "healthy"
         
         # Check performance
         avg_latency = summary["message_processing"]["latency_ms"]["avg"]
-        if avg_latency > 1000:  # More than 1 second average
-            health_status["checks"]["performance"] = "degraded"
-            health_status["recommendations"].append(
+        if avg_latency > MAX_LATENCY_MS_THRESHOLD:
+            checks["performance"] = "degraded"
+            recommendations.append(
                 f"High average latency: {avg_latency:.0f}ms - consider optimization"
             )
         else:
-            health_status["checks"]["performance"] = "healthy"
+            checks["performance"] = "healthy"
         
         # Check cache performance
         cache_hit_rate = summary["cache_performance"]["hit_rate"]
-        if cache_hit_rate < 0.8 and summary["cache_performance"]["hits"] > 0:
-            health_status["recommendations"].append(
+        if cache_hit_rate < CACHE_HIT_RATE_THRESHOLD and summary["cache_performance"]["hits"] > 0:
+            recommendations.append(
                 f"Low cache hit rate: {cache_hit_rate:.1%} - consider cache tuning"
             )
         
