@@ -24,8 +24,8 @@ class TestSkillLoggerCaching:
     def test_handler_caching(self):
         """Test that handlers are properly cached and reused."""
         # Get multiple loggers with same configuration
-        logger1 = SkillLogger.get_logger("test.logger1")
-        logger2 = SkillLogger.get_logger("test.logger2")
+        SkillLogger.get_logger("test.logger1")
+        SkillLogger.get_logger("test.logger2")
 
         # Verify handlers are cached (same handler should be reused)
         cache_stats = SkillLogger.get_cache_stats()
@@ -39,19 +39,20 @@ class TestSkillLoggerCaching:
         format2 = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
         # Create loggers with different formats
-        logger1 = SkillLogger.get_logger("test.logger1", format_string=format1)
-        logger2 = SkillLogger.get_logger("test.logger2", format_string=format1)  # Same format
-        logger3 = SkillLogger.get_logger("test.logger3", format_string=format2)  # Different format
+        SkillLogger.get_logger("test.logger1", format_string=format1)
+        SkillLogger.get_logger("test.logger2", format_string=format1)  # Same format
+        SkillLogger.get_logger("test.logger3", format_string=format2)  # Different format
 
         cache_stats = SkillLogger.get_cache_stats()
         # Should have at least 2 formatters (one for each unique format)
-        assert cache_stats["formatters_cached"] >= 2
+        min_formatters = 2
+        assert cache_stats["formatters_cached"] >= min_formatters
 
     def test_console_caching(self):
         """Test that console instances are properly cached."""
         # Create multiple loggers with default configuration
-        logger1 = SkillLogger.get_logger("test.logger1")
-        logger2 = SkillLogger.get_logger("test.logger2")
+        SkillLogger.get_logger("test.logger1")
+        SkillLogger.get_logger("test.logger2")
 
         cache_stats = SkillLogger.get_cache_stats()
         # Should have at least 1 cached console
@@ -62,8 +63,8 @@ class TestSkillLoggerCaching:
         custom_console = Console()
         config = LoggerConfig(console=custom_console)
 
-        logger1 = SkillLogger.get_logger("test.logger1", config=config)
-        logger2 = SkillLogger.get_logger("test.logger2", config=config)
+        SkillLogger.get_logger("test.logger1", config=config)
+        SkillLogger.get_logger("test.logger2", config=config)
 
         # Custom console should still result in caching behavior
         cache_stats = SkillLogger.get_cache_stats()
@@ -93,7 +94,8 @@ class TestSkillLoggerCaching:
         assert len(errors) == 0, f"Thread safety errors: {errors}"
 
         # Verify all loggers were created
-        assert len(results) == 50  # 5 workers * 10 loggers each
+        expected_results = 50  # 5 workers * 10 loggers each
+        assert len(results) == expected_results
 
         # Verify cache was populated
         cache_stats = SkillLogger.get_cache_stats()
@@ -103,8 +105,8 @@ class TestSkillLoggerCaching:
     def test_clear_cache(self):
         """Test that cache clearing works correctly."""
         # Create some loggers to populate cache
-        logger1 = SkillLogger.get_logger("test.logger1")
-        logger2 = SkillLogger.get_logger("test.logger2")
+        SkillLogger.get_logger("test.logger1")
+        SkillLogger.get_logger("test.logger2")
 
         # Verify cache is populated
         cache_stats = SkillLogger.get_cache_stats()
@@ -125,12 +127,13 @@ class TestSkillLoggerCaching:
         config1 = LoggerConfig(show_time=True, show_path=False)
         config2 = LoggerConfig(show_time=False, show_path=True)
 
-        logger1 = SkillLogger.get_logger("test.logger1", config=config1)
-        logger2 = SkillLogger.get_logger("test.logger2", config=config2)
+        SkillLogger.get_logger("test.logger1", config=config1)
+        SkillLogger.get_logger("test.logger2", config=config2)
 
         cache_stats = SkillLogger.get_cache_stats()
         # Different configurations should create separate handlers
-        assert cache_stats["handlers_cached"] >= 2
+        min_handlers = 2
+        assert cache_stats["handlers_cached"] >= min_handlers
 
     def test_get_console_logger_with_caching(self):
         """Test that get_console_logger works with caching."""
@@ -183,9 +186,12 @@ class TestSkillLoggerCaching:
         SkillLogger.get_logger("test.logger2", format_string="format2")
 
         final_stats = SkillLogger.get_cache_stats()
-        assert final_stats["handlers_cached"] >= 2
-        assert final_stats["formatters_cached"] >= 2
-        assert final_stats["consoles_cached"] >= 1
+        min_handlers = 2
+        min_formatters = 2
+        min_consoles = 1
+        assert final_stats["handlers_cached"] >= min_handlers
+        assert final_stats["formatters_cached"] >= min_formatters
+        assert final_stats["consoles_cached"] >= min_consoles
 
     def test_logging_functionality_preserved(self):
         """Test that caching doesn't break logging functionality."""
@@ -262,8 +268,9 @@ class TestSkillLoggerEdgeCases:
             SkillLogger.get_logger(f"test.large{i}", format_string=f"format_{i}")
 
         cache_stats = SkillLogger.get_cache_stats()
-        assert cache_stats["handlers_cached"] == 50
-        assert cache_stats["formatters_cached"] == 50
+        expected_cache_size = 50
+        assert cache_stats["handlers_cached"] == expected_cache_size
+        assert cache_stats["formatters_cached"] == expected_cache_size
 
         # Verify cache clearing works with large cache
         SkillLogger.clear_cache()
@@ -276,7 +283,8 @@ class TestSkillLoggerEdgeCases:
         def worker():
             for i in range(10):
                 SkillLogger.get_logger(f"concurrent.{threading.current_thread().ident}.{i}")
-                if i == 5:  # Clear cache mid-way through
+                cache_clear_point = 5
+                if i == cache_clear_point:  # Clear cache mid-way through
                     SkillLogger.clear_cache()
 
         threads = [threading.Thread(target=worker) for _ in range(3)]

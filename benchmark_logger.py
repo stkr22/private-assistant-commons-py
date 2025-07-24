@@ -64,7 +64,7 @@ def benchmark_logger_creation(num_loggers: int = 1000, warmup_runs: int = 5) -> 
 
     improvement = ((uncached_mean - cached_mean) / uncached_mean) * 100
 
-    results = {
+    return {
         "cached_mean": cached_mean,
         "cached_std": cached_std,
         "uncached_mean": uncached_mean,
@@ -72,8 +72,6 @@ def benchmark_logger_creation(num_loggers: int = 1000, warmup_runs: int = 5) -> 
         "improvement_percent": improvement,
         "speedup_factor": uncached_mean / cached_mean if cached_mean > 0 else 1,
     }
-
-    return results
 
 
 def print_benchmark_results(results: dict[str, float], num_loggers: int) -> None:
