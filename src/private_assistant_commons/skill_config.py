@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import logging
 import os
 from pathlib import Path
-from typing import Self, TypeVar
+from typing import Any, Self, TypeVar
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -53,7 +55,7 @@ class SkillConfig(BaseModel):
         return f"{self.base_topic}/{self.client_id}/feedback"
 
 
-def combine_yaml_files(file_paths: list[Path]) -> dict:
+def combine_yaml_files(file_paths: list[Path]) -> dict[str, Any]:
     """
     Combine multiple YAML files into a single dictionary.
 
