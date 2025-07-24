@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [3.4.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.3.0...v3.4.0) (2025-07-24)
+
+
+### Features
+
+* enhance skill_logger with rich console and visual improvements ([ee87e5c](https://github.com/stkr22/private-assistant-commons-py/commit/ee87e5ca7f80a250ee6d1b26512eaf50f3f4a462))
+* enhance skill_logger with rich console and visual improvements ([8261214](https://github.com/stkr22/private-assistant-commons-py/commit/8261214be9ae355c35b2f852d0819298ad3f8305))
+
 ## [3.3.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.2.0...v3.3.0) (2025-07-23)
 
 
