@@ -384,6 +384,197 @@ intent_cache_size: 500
 
 The cache uses LRU eviction - older entries are automatically removed when the limit is reached, preventing memory leaks while maintaining fast O(1) lookup performance.
 
+## Monitoring and Metrics
+
+Private Assistant Commons includes comprehensive metrics collection for production monitoring and observability.
+
+### Built-in Metrics Collection
+
+Every BaseSkill automatically collects performance metrics:
+
+```python
+# Metrics are automatically collected for:
+# - Message processing (throughput, latency, success rates)
+# - MQTT operations (publish success/failure, response times)
+# - Task management (creation, completion, failures)
+# - Cache performance (hit rates, evictions)
+# - System health (error rates, uptime)
+
+# Access metrics in your skill:
+class MySkill(BaseSkill):
+    async def skill_preparations(self) -> None:
+        # Metrics are available via self.metrics
+        self.logger.info("Metrics collector: %s", self.metrics.skill_name)
+```
+
+### Prometheus Integration
+
+Export metrics for Prometheus monitoring:
+
+```python
+from private_assistant_commons.metrics import MetricsCollector
+
+# Get Prometheus format metrics
+metrics_text = skill.metrics.get_prometheus_metrics()
+
+# Typical metrics exported:
+# - skill_messages_processed_total
+# - skill_messages_failed_total  
+# - skill_message_processing_duration_seconds
+# - skill_throughput_messages_per_second
+# - skill_mqtt_publishes_total
+# - skill_mqtt_publish_failures_total
+# - skill_tasks_created_total
+# - skill_cache_hits_total
+# - skill_uptime_seconds
+```
+
+### HTTP Metrics Endpoint 
+
+Add a metrics endpoint to your skill:
+
+```python
+from aiohttp import web, web_runner
+import asyncio
+
+class MonitoredSkill(BaseSkill):
+    async def skill_preparations(self) -> None:
+        # Start HTTP server for metrics
+        await self._start_metrics_server()
+    
+    async def _start_metrics_server(self):
+        """Start HTTP server for Prometheus metrics scraping."""
+        app = web.Application()
+        app.router.add_get('/metrics', self._metrics_handler)
+        app.router.add_get('/health', self._health_handler)
+        
+        runner = web_runner.AppRunner(app)
+        await runner.setup()
+        
+        site = web_runner.TCPSite(runner, '0.0.0.0', 8080)
+        await site.start()
+        
+        self.logger.info("Metrics server started on :8080")
+    
+    async def _metrics_handler(self, request):
+        """Serve Prometheus metrics."""
+        metrics_text = self.metrics.get_prometheus_metrics()
+        return web.Response(text=metrics_text, content_type='text/plain')
+    
+    async def _health_handler(self, request):
+        """Serve health check information."""
+        from private_assistant_commons.metrics import HealthChecker
+        
+        health_checker = HealthChecker(self.metrics)
+        health_status = health_checker.check_health()
+        
+        status_code = 200 if health_status["overall_status"] == "healthy" else 503
+        return web.json_response(health_status, status=status_code)
+```
+
+### Kubernetes Service Monitor
+
+Configure Prometheus to scrape your skills:
+
+```yaml
+# service-monitor.yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor  
+metadata:
+  name: private-assistant-skills
+spec:
+  selector:
+    matchLabels:
+      app: private-assistant-skill
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+---
+# service.yaml  
+apiVersion: v1
+kind: Service
+metadata:
+  name: light-skill-metrics
+  labels:
+    app: private-assistant-skill
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+  selector:
+    app: light-control-skill
+```
+
+### Health Monitoring
+
+Automated health checks with configurable thresholds:
+
+```python
+from private_assistant_commons.metrics import HealthChecker
+
+health_checker = HealthChecker(skill.metrics)
+health_status = health_checker.check_health()
+
+# Health status includes:
+# - overall_status: "healthy", "degraded", or "critical"
+# - checks: Individual component health
+# - alerts: Current issues requiring attention
+# - recommendations: Performance optimization suggestions
+
+print(f"System status: {health_status['overall_status']}")
+for alert in health_status['alerts']:
+    print(f"⚠️  {alert}")
+```
+
+### Grafana Dashboard
+
+Example Grafana queries for skill monitoring:
+
+```promql
+# Message processing rate
+rate(skill_messages_processed_total[5m])
+
+# Error rate percentage  
+rate(skill_messages_failed_total[5m]) / rate(skill_messages_processed_total[5m]) * 100
+
+# 95th percentile latency
+histogram_quantile(0.95, skill_message_processing_duration_seconds)
+
+# MQTT success rate
+rate(skill_mqtt_publishes_total[5m]) / (rate(skill_mqtt_publishes_total[5m]) + rate(skill_mqtt_publish_failures_total[5m])) * 100
+
+# Cache hit rate
+rate(skill_cache_hits_total[5m]) / (rate(skill_cache_hits_total[5m]) + rate(skill_cache_misses_total[5m])) * 100
+```
+
+### Custom Metrics
+
+Add skill-specific metrics:
+
+```python
+class WeatherSkill(BaseSkill):
+    async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
+        # Start timing custom operation
+        timer_id = self.metrics.start_timer("weather_api_call")
+        
+        try:
+            weather_data = await self._get_weather()
+            
+            # Record successful API call
+            duration = self.metrics.end_timer(timer_id)
+            self.logger.info("Weather API call completed in %.3fs", duration)
+            
+        except Exception as e:
+            # Record failed operation
+            self.metrics.end_timer(timer_id)
+            self.metrics.record_log_event("ERROR")
+            raise
+```
+
+These metrics provide comprehensive visibility into skill performance, helping identify bottlenecks, monitor system health, and ensure reliable operation in production environments.
+
 ## Testing Skills
 
 ### Unit Testing

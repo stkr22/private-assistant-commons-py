@@ -17,6 +17,7 @@ import aiomqtt
 from pydantic import ValidationError
 
 from private_assistant_commons import messages, skill_config, skill_logger
+from private_assistant_commons.metrics import MetricsCollector
 
 
 class BoundedDict(OrderedDict):
@@ -108,6 +109,9 @@ class BaseSkill(ABC):
         # AIDEV-NOTE: Task lifecycle management for monitoring and debugging
         self._active_tasks: dict[int, BaseSkill.TaskInfo] = {}
         self._task_counter = 0
+        
+        # AIDEV-NOTE: Performance metrics and observability
+        self.metrics = MetricsCollector(skill_name=config_obj.client_id)
 
     def decode_message_payload(self, payload: bytes | bytearray | str | Any) -> str | None:
         """Decode MQTT message payload to string.
@@ -211,6 +215,9 @@ class BaseSkill(ABC):
         3. Calculate skill-specific certainty score
         4. Process request if certainty >= threshold
         """
+        # Start timing for performance metrics
+        timer_id = self.metrics.start_timer("message_processing")
+        
         try:
             # Parse and validate the incoming JSON message
             intent_analysis_result = messages.IntentAnalysisResult.model_validate_json(payload)
@@ -218,7 +225,14 @@ class BaseSkill(ABC):
             # Store result in bounded cache with thread-safe access
             # This cache is legacy from coordinator-based architecture but still used for debugging
             async with self._results_lock:
+                cache_had_key = intent_analysis_result.id in self.intent_analysis_results
                 self.intent_analysis_results[intent_analysis_result.id] = intent_analysis_result
+                
+                # Record cache metrics
+                self.metrics.record_cache_event(
+                    "hit" if cache_had_key else "miss",
+                    cache_size=len(self.intent_analysis_results)
+                )
 
             # Calculate skill-specific confidence score (implemented by each skill)
             certainty = await self.calculate_certainty(intent_analysis_result)
@@ -227,12 +241,24 @@ class BaseSkill(ABC):
             # Distributed decision: each skill independently decides whether to handle the request
             if certainty >= self.certainty_threshold:
                 await self.process_request(intent_analysis_result)
+                self.metrics.record_message_processed(success=True, certainty=certainty)
             else:
                 self.logger.info(
                     "Certainty (%.2f) below threshold (%.2f), skipping request.", certainty, self.certainty_threshold
                 )
+                self.metrics.record_message_processed(success=True, certainty=certainty)
+                
         except ValidationError as e:
             self.logger.error("Error validating client request message: %s", e)
+            self.metrics.record_message_processed(success=False)
+            self.metrics.record_log_event("ERROR")
+        except Exception as e:
+            self.logger.error("Unexpected error processing message: %s", e, exc_info=True)
+            self.metrics.record_message_processed(success=False)
+            self.metrics.record_log_event("ERROR")
+        finally:
+            # End timing
+            self.metrics.end_timer(timer_id)
 
     @abstractmethod
     async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
@@ -350,6 +376,9 @@ class BaseSkill(ABC):
         """
         response = messages.Response(text=response_text, alert=alert)
         last_error_type = None
+        
+        # Start timing for MQTT operation metrics
+        timer_id = self.metrics.start_timer("mqtt_publish")
 
         for attempt in range(max_retries + 1):
             try:
@@ -369,6 +398,10 @@ class BaseSkill(ABC):
                 )
 
                 self.logger.info("%s: Successfully published to topic '%s' (attempt %d)", operation, topic, attempt + 1)
+                
+                # Record successful publish
+                duration = self.metrics.end_timer(timer_id)
+                self.metrics.record_mqtt_event("publish", success=True, duration=duration)
                 return True
 
             except asyncio.CancelledError:
@@ -412,6 +445,8 @@ class BaseSkill(ABC):
                 await asyncio.sleep(delay)
 
         # All retries failed - handle gracefully
+        duration = self.metrics.end_timer(timer_id)
+        self.metrics.record_mqtt_event("publish", success=False, duration=duration)
         await self._handle_publish_failure(last_error_type, operation, topic, response_text)
         return False
 
@@ -475,6 +510,9 @@ class BaseSkill(ABC):
         # Add completion callback for cleanup
         task.add_done_callback(partial(self._task_completed, self._task_counter))
 
+        # Record task creation in metrics
+        self.metrics.record_task_event("created")
+
         self.logger.info("Added task '%s' (#%d)", name, self._task_counter)
         self._task_counter += 1
         return task
@@ -491,8 +529,12 @@ class BaseSkill(ABC):
             return
 
         duration = datetime.now() - task_info.created_at
+        duration_seconds = duration.total_seconds()
 
         if task.exception():
+            # Record task failure in metrics
+            self.metrics.record_task_event("failed", duration=duration_seconds)
+            
             self.logger.error(
                 "Task '%s' (#%d) failed after %s: %s",
                 task_info.name,
@@ -502,6 +544,9 @@ class BaseSkill(ABC):
                 exc_info=task.exception(),
             )
         else:
+            # Record task completion in metrics
+            self.metrics.record_task_event("completed", duration=duration_seconds)
+            
             self.logger.debug("Task '%s' (#%d) completed successfully after %s", task_info.name, task_id, duration)
 
     def get_active_task_count(self) -> int:
