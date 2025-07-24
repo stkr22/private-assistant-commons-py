@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [3.5.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.4.0...v3.5.0) (2025-07-24)
+
+
+### Features
+
+* enhance documentation and type hints across all modules ([f70c44c](https://github.com/stkr22/private-assistant-commons-py/commit/f70c44c765f7c81e8c6fb7cfeba0290ea9456b24))
+* enhance documentation and type hints across all modules ([d1af24d](https://github.com/stkr22/private-assistant-commons-py/commit/d1af24dfc4d11d1bdde58108b87a35f21beba02c))
+
 ## [3.4.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.3.0...v3.4.0) (2025-07-24)
 
 
