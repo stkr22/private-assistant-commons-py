@@ -31,16 +31,17 @@ pip install private-assistant-commons
 ### Basic Skill Example
 
 ```python
-from private_assistant_commons import BaseSkill, IntentAnalysisResult
+from private_assistant_commons import BaseSkill, IntentRequest, IntentType
 
 class LightControlSkill(BaseSkill):
-    async def calculate_certainty(self, intent: IntentAnalysisResult) -> float:
-        if "light" in intent.nouns and "turn" in intent.verbs:
-            return 0.9
+    async def calculate_certainty(self, intent_request: IntentRequest) -> float:
+        intent = intent_request.classified_intent
+        if intent.intent_type in (IntentType.DEVICE_ON, IntentType.DEVICE_OFF):
+            return intent.confidence
         return 0.0
 
-    async def process_request(self, intent: IntentAnalysisResult) -> None:
-        await self.send_response("Lights controlled!", intent.client_request)
+    async def process_request(self, intent_request: IntentRequest) -> None:
+        await self.send_response("Lights controlled!", intent_request.client_request)
 
     async def skill_preparations(self) -> None:
         self.logger.info("Light skill ready")

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 import aiomqtt
 from pydantic import ValidationError
 
-from private_assistant_commons import messages, skill_config, skill_logger
+from private_assistant_commons import intent, skill_config, skill_logger
 from private_assistant_commons.metrics import MetricsCollector
 
 
@@ -99,17 +99,17 @@ class BaseSkill(ABC):
         self.config_obj: skill_config.SkillConfig = config_obj
         self.certainty_threshold: float = certainty_threshold
         # AIDEV-NOTE: Bounded LRU cache prevents memory leaks from unbounded growth
-        self.intent_analysis_results: BoundedDict = BoundedDict(max_size=config_obj.intent_cache_size)
+        self.intent_requests: BoundedDict = BoundedDict(max_size=config_obj.intent_cache_size)
         self._results_lock = asyncio.Lock()  # Thread safety for concurrent access
         self.mqtt_client: aiomqtt.Client = mqtt_client
         self.task_group: asyncio.TaskGroup = task_group
         self.logger = logger or skill_logger.SkillLogger.get_logger(__name__)
-        self.default_alert = messages.Alert(play_before=True)
+        self.default_alert = intent.Alert(play_before=True)
 
         # AIDEV-NOTE: Task lifecycle management for monitoring and debugging
         self._active_tasks: dict[int, BaseSkill.TaskInfo] = {}
         self._task_counter = 0
-        
+
         # AIDEV-NOTE: Performance metrics and observability
         self.metrics = MetricsCollector(skill_name=config_obj.client_id)
 
@@ -171,11 +171,11 @@ class BaseSkill(ABC):
                     self.add_task(self._handle_message_async(payload_str))
 
     @abstractmethod
-    async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:
+    async def calculate_certainty(self, intent_request: intent.IntentRequest) -> float:
         """Calculate confidence score for handling this request.
 
         Args:
-            intent_analysis_result: Parsed voice command with extracted intents
+            intent_request: Parsed voice command with classified intent and client request
 
         Returns:
             Confidence score between 0.0-1.0. Values >= certainty_threshold
@@ -217,37 +217,36 @@ class BaseSkill(ABC):
         """
         # Start timing for performance metrics
         timer_id = self.metrics.start_timer("message_processing")
-        
+
         try:
             # Parse and validate the incoming JSON message
-            intent_analysis_result = messages.IntentAnalysisResult.model_validate_json(payload)
+            intent_request = intent.IntentRequest.model_validate_json(payload)
 
             # Store result in bounded cache with thread-safe access
             # This cache is legacy from coordinator-based architecture but still used for debugging
             async with self._results_lock:
-                cache_had_key = intent_analysis_result.id in self.intent_analysis_results
-                self.intent_analysis_results[intent_analysis_result.id] = intent_analysis_result
-                
+                cache_had_key = intent_request.id in self.intent_requests
+                self.intent_requests[intent_request.id] = intent_request
+
                 # Record cache metrics
                 self.metrics.record_cache_event(
-                    "hit" if cache_had_key else "miss",
-                    cache_size=len(self.intent_analysis_results)
+                    "hit" if cache_had_key else "miss", cache_size=len(self.intent_requests)
                 )
 
             # Calculate skill-specific confidence score (implemented by each skill)
-            certainty = await self.calculate_certainty(intent_analysis_result)
+            certainty = await self.calculate_certainty(intent_request)
             self.logger.debug("Calculated certainty for intent: %.2f", certainty)
 
             # Distributed decision: each skill independently decides whether to handle the request
             if certainty >= self.certainty_threshold:
-                await self.process_request(intent_analysis_result)
+                await self.process_request(intent_request)
                 self.metrics.record_message_processed(success=True, certainty=certainty)
             else:
                 self.logger.info(
                     "Certainty (%.2f) below threshold (%.2f), skipping request.", certainty, self.certainty_threshold
                 )
                 self.metrics.record_message_processed(success=True, certainty=certainty)
-                
+
         except ValidationError as e:
             self.logger.error("Error validating client request message: %s", e)
             self.metrics.record_message_processed(success=False)
@@ -261,11 +260,11 @@ class BaseSkill(ABC):
             self.metrics.end_timer(timer_id)
 
     @abstractmethod
-    async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
+    async def process_request(self, intent_request: intent.IntentRequest) -> None:
         """Process a request that exceeded the certainty threshold.
 
         Args:
-            intent_analysis_result: Validated request with extracted intents
+            intent_request: Validated request with classified intent and client info
 
         This is where skills implement their core business logic.
         Common patterns:
@@ -278,8 +277,8 @@ class BaseSkill(ABC):
     async def send_response(
         self,
         response_text: str,
-        client_request: messages.ClientRequest,
-        alert: messages.Alert | None = None,
+        client_request: intent.ClientRequest,
+        alert: intent.Alert | None = None,
     ) -> bool:
         """Send a response to a specific client request with retry logic.
 
@@ -301,7 +300,7 @@ class BaseSkill(ABC):
     async def broadcast_response(
         self,
         response_text: str,
-        alert: messages.Alert | None = None,
+        alert: intent.Alert | None = None,
     ) -> bool:
         """Broadcast a response to all connected clients with retry logic.
 
@@ -326,9 +325,9 @@ class BaseSkill(ABC):
     async def publish_with_alert(
         self,
         response_text: str,
-        client_request: messages.ClientRequest | None = None,
+        client_request: intent.ClientRequest | None = None,
         broadcast: bool = False,
-        alert: messages.Alert | None = None,
+        alert: intent.Alert | None = None,
     ) -> None:
         """Publish a message with flexible routing and alert options.
 
@@ -358,7 +357,7 @@ class BaseSkill(ABC):
         self,
         response_text: str,
         topic: str,
-        alert: messages.Alert | None = None,
+        alert: intent.Alert | None = None,
         operation: str = "mqtt_publish",
         max_retries: int = 3,
     ) -> bool:
@@ -374,9 +373,9 @@ class BaseSkill(ABC):
         Returns:
             bool: True if response was successfully published, False otherwise
         """
-        response = messages.Response(text=response_text, alert=alert)
+        response = intent.Response(text=response_text, alert=alert)
         last_error_type = None
-        
+
         # Start timing for MQTT operation metrics
         timer_id = self.metrics.start_timer("mqtt_publish")
 
@@ -398,7 +397,7 @@ class BaseSkill(ABC):
                 )
 
                 self.logger.info("%s: Successfully published to topic '%s' (attempt %d)", operation, topic, attempt + 1)
-                
+
                 # Record successful publish
                 duration = self.metrics.end_timer(timer_id)
                 self.metrics.record_mqtt_event("publish", success=True, duration=duration)
@@ -534,7 +533,7 @@ class BaseSkill(ABC):
         if task.exception():
             # Record task failure in metrics
             self.metrics.record_task_event("failed", duration=duration_seconds)
-            
+
             self.logger.error(
                 "Task '%s' (#%d) failed after %s: %s",
                 task_info.name,
@@ -546,7 +545,7 @@ class BaseSkill(ABC):
         else:
             # Record task completion in metrics
             self.metrics.record_task_event("completed", duration=duration_seconds)
-            
+
             self.logger.debug("Task '%s' (#%d) completed successfully after %s", task_info.name, task_id, duration)
 
     def get_active_task_count(self) -> int:

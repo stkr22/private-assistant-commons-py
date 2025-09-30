@@ -320,6 +320,7 @@ wheels = [
 
 [[package]]
 name = "private-assistant-commons"
+version = "3.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiomqtt" },

@@ -11,45 +11,44 @@ pip install private-assistant-commons
 ### Basic Skill Implementation
 
 ```python
-from private_assistant_commons import BaseSkill, IntentAnalysisResult
+from private_assistant_commons import BaseSkill, IntentRequest, IntentType, EntityType
 
 class LightControlSkill(BaseSkill):
     async def skill_preparations(self) -> None:
         """Initialize any resources needed by the skill."""
         self.logger.info("Light control skill initialized")
         
-    async def calculate_certainty(self, intent_analysis_result: IntentAnalysisResult) -> float:
+    async def calculate_certainty(self, intent_request: IntentRequest) -> float:
         """Calculate confidence score for handling this request."""
-        verbs = intent_analysis_result.verbs
-        nouns = intent_analysis_result.nouns
-        
-        # Check for light-related keywords
-        light_nouns = {"light", "lights", "lamp", "bulb"}
-        light_verbs = {"turn", "switch", "dim", "brighten"}
-        
-        noun_match = bool(set(nouns) & light_nouns)
-        verb_match = bool(set(verbs) & light_verbs)
-        
-        if noun_match and verb_match:
-            return 0.9
-        elif noun_match:
-            return 0.5
+        intent = intent_request.classified_intent
+
+        # Check for light-related intent types
+        light_intents = {IntentType.DEVICE_ON, IntentType.DEVICE_OFF, IntentType.DEVICE_SET}
+
+        if intent.intent_type in light_intents:
+            # Check if it's about lights based on entities
+            for entity in intent.entities.get("devices", []):
+                if entity.raw_text.lower() in {"light", "lights", "lamp", "bulb"}:
+                    return intent.confidence
+            return 0.3  # Low confidence if intent type matches but no light entity
         else:
             return 0.0
             
-    async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
+    async def process_request(self, intent_request: IntentRequest) -> None:
         """Process a request that exceeded the certainty threshold."""
-        client_request = intent_analysis_result.client_request
-        
-        # Determine target room(s)
-        rooms = intent_analysis_result.rooms or [client_request.room]
-        
-        # Process the command
-        action = "turned off" if "off" in intent_analysis_result.verbs else "turned on"
+        client_request = intent_request.client_request
+        intent = intent_request.classified_intent
+
+        # Determine target room(s) from entities
+        room_entities = intent.entities.get("rooms", [])
+        rooms = [e.normalized_value for e in room_entities] or [client_request.room]
+
+        # Process the command based on intent type
+        action = "turned off" if intent.intent_type == IntentType.DEVICE_OFF else "turned on"
         room_text = " and ".join(rooms)
-        
+
         response_text = f"I've {action} the lights in the {room_text}"
-        
+
         # Send response back to the user
         await self.send_response(response_text, client_request)
 ```
@@ -86,18 +85,21 @@ if __name__ == "__main__":
 Most skills use simple keyword matching:
 
 ```python
-async def calculate_certainty(self, intent_analysis_result: IntentAnalysisResult) -> float:
-    verbs = set(intent_analysis_result.verbs)
-    nouns = set(intent_analysis_result.nouns)
-    
-    # Required keywords for this skill
-    required_verbs = {"play", "start", "stop", "pause"}
-    required_nouns = {"music", "song", "playlist", "spotify"}
-    
-    verb_score = 0.4 if verbs & required_verbs else 0.0
-    noun_score = 0.6 if nouns & required_nouns else 0.0
-    
-    return verb_score + noun_score
+async def calculate_certainty(self, intent_request: IntentRequest) -> float:
+    intent = intent_request.classified_intent
+
+    # Check for media control intents
+    media_intents = {IntentType.MEDIA_PLAY, IntentType.MEDIA_STOP, IntentType.MEDIA_NEXT}
+
+    if intent.intent_type in media_intents:
+        return intent.confidence
+
+    # Fallback to checking entities for media-related content
+    for entity in intent.entities.get("media_id", []):
+        if "music" in entity.raw_text.lower() or "song" in entity.raw_text.lower():
+            return 0.7
+
+    return 0.0
 ```
 
 ### 2. Number Processing
@@ -105,14 +107,14 @@ async def calculate_certainty(self, intent_analysis_result: IntentAnalysisResult
 Extract and use numbers from voice commands:
 
 ```python
-async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
-    numbers = intent_analysis_result.numbers
+async def process_request(self, intent_request: IntentRequest) -> None:
+    intent = intent_request.classified_intent
     
-    # Look for timer duration
+    # Look for duration entities
     duration_minutes = None
-    for num_result in numbers:
-        if num_result.next_token in ["minute", "minutes", "min"]:
-            duration_minutes = num_result.number_token
+    for entity in intent.entities.get("durations", []):
+        if entity.type == EntityType.DURATION:
+            duration_minutes = entity.normalized_value
             break
     
     if duration_minutes:
@@ -125,8 +127,8 @@ async def process_request(self, intent_analysis_result: IntentAnalysisResult) ->
 Use task spawning for delayed or concurrent operations:
 
 ```python
-async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
-    client_request = intent_analysis_result.client_request
+async def process_request(self, intent_request: IntentRequest) -> None:
+    client_request = intent_request.client_request
     
     # Acknowledge immediately
     await self.send_response("Setting timer", client_request)
@@ -139,7 +141,7 @@ async def _timer_task(self, duration_minutes: int, client_request):
     await asyncio.sleep(duration_minutes * 60)
     
     # Send alert after timer completes
-    alert = messages.Alert(play_before=True, sound="timer")
+    alert = Alert(play_before=True, sound="timer")
     await self.send_response(
         f"Timer for {duration_minutes} minutes is complete!",
         client_request,
@@ -152,13 +154,12 @@ async def _timer_task(self, duration_minutes: int, client_request):
 Handle location context in commands:
 
 ```python
-async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
-    client_request = intent_analysis_result.client_request
+async def process_request(self, intent_request: IntentRequest) -> None:
+    client_request = intent_request.client_request
     
-    # Get target rooms from command or fallback to origin
-    target_rooms = intent_analysis_result.rooms
-    if not target_rooms:
-        target_rooms = [client_request.room]
+    # Get target rooms from entities or fallback to origin
+    room_entities = intent_request.classified_intent.entities.get("rooms", [])
+    target_rooms = [e.normalized_value for e in room_entities] or [client_request.room]
     
     # Process for each target room
     for room in target_rooms:
@@ -291,22 +292,21 @@ await self.publish_with_alert(
 ### Complex Certainty Calculation
 
 ```python
-async def calculate_certainty(self, intent_analysis_result: IntentAnalysisResult) -> float:
-    verbs = intent_analysis_result.verbs
-    nouns = intent_analysis_result.nouns
-    text = intent_analysis_result.client_request.text.lower()
+async def calculate_certainty(self, intent_request: IntentRequest) -> float:
+    intent = intent_request.classified_intent
+    text = intent_request.client_request.text.lower()
     
-    # Base score from keywords
+    # Base score from intent type and entities
     score = 0.0
-    
-    # Verb matching
-    if any(v in verbs for v in ["weather", "forecast", "temperature"]):
-        score += 0.4
-        
-    # Noun matching  
-    weather_nouns = {"weather", "temperature", "rain", "snow", "sun"}
-    if any(n in nouns for n in weather_nouns):
-        score += 0.3
+
+    # Check for weather-related queries
+    if intent.intent_type == IntentType.QUERY_STATUS:
+        # Check entities for weather-related content
+        for entity_list in intent.entities.values():
+            for e in entity_list:
+                if any(word in e.raw_text.lower() for word in ["weather", "temperature", "rain"]):
+                    score += 0.7
+                    break
         
     # Context phrases
     weather_phrases = ["what's the weather", "how hot", "will it rain"]
@@ -324,11 +324,11 @@ class TimerSkill(BaseSkill):
         super().__init__(*args, **kwargs)
         self.active_timers: dict[uuid.UUID, dict] = {}
         
-    async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
-        if "cancel" in intent_analysis_result.verbs:
-            await self._cancel_timers(intent_analysis_result.client_request)
+    async def process_request(self, intent_request: IntentRequest) -> None:
+        if intent_request.classified_intent.intent_type == IntentType.SCHEDULE_CANCEL:
+            await self._cancel_timers(intent_request.client_request)
         else:
-            await self._start_new_timer(intent_analysis_result)
+            await self._start_new_timer(intent_request)
             
     async def _cancel_timers(self, client_request):
         # Cancel all timers for this user
@@ -344,8 +344,8 @@ class TimerSkill(BaseSkill):
 ### Error Handling
 
 ```python
-async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
-    client_request = intent_analysis_result.client_request
+async def process_request(self, intent_request: IntentRequest) -> None:
+    client_request = intent_request.client_request
     
     try:
         result = await self._call_external_api()
@@ -555,7 +555,7 @@ Add skill-specific metrics:
 
 ```python
 class WeatherSkill(BaseSkill):
-    async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
+    async def process_request(self, intent_request: IntentRequest) -> None:
         # Start timing custom operation
         timer_id = self.metrics.start_timer("weather_api_call")
         
@@ -594,12 +594,24 @@ async def skill():
 
 @pytest.mark.asyncio
 async def test_certainty_calculation(skill):
-    intent = IntentAnalysisResult(
-        client_request=ClientRequest(...),
-        verbs=["turn", "on"],
-        nouns=["lights"],
-        numbers=[],
-        rooms=[]
+    from private_assistant_commons import ClientRequest, ClassifiedIntent, Entity
+    import uuid
+
+    client_request = ClientRequest(
+        id=uuid.uuid4(),
+        text="turn on lights",
+        room="living_room",
+        output_topic="test/output"
+    )
+    classified_intent = ClassifiedIntent(
+        intent_type=IntentType.DEVICE_ON,
+        confidence=0.9,
+        entities={"devices": [Entity(type=EntityType.DEVICE, raw_text="lights", normalized_value="lights")]},
+        raw_text="turn on lights"
+    )
+    intent_request = IntentRequest(
+        classified_intent=classified_intent,
+        client_request=client_request
     )
     
     certainty = await skill.calculate_certainty(intent)
