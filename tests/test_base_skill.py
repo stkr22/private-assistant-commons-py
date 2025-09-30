@@ -3,16 +3,16 @@ import unittest
 import uuid
 from unittest.mock import AsyncMock, Mock, patch
 
-from private_assistant_commons import messages, skill_config
+from private_assistant_commons import intent, skill_config
 from private_assistant_commons.base_skill import BaseSkill
 
 
 # Concrete subclass of BaseSkill for testing
 class TestSkill(BaseSkill):
-    async def calculate_certainty(self, intent_analysis_result: messages.IntentAnalysisResult) -> float:  # noqa: ARG002
+    async def calculate_certainty(self, intent_request: intent.IntentRequest) -> float:  # noqa: ARG002
         return 1.0  # Simplified certainty calculation for testing
 
-    async def process_request(self, intent_analysis_result: messages.IntentAnalysisResult) -> None:
+    async def process_request(self, intent_request: intent.IntentRequest) -> None:
         pass  # Simplified processing logic for testing
 
     async def skill_preparations(self) -> None:
@@ -31,7 +31,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         self.mock_config.mqtt_server_port = 1883
         self.mock_config.intent_cache_size = 1000
         self.mock_logger = Mock(logging.Logger)
-        self.default_alert = messages.Alert(play_before=True)
+        self.default_alert = intent.Alert(play_before=True)
 
         # Instantiate the concrete subclass instead of BaseSkill
         self.skill = TestSkill(
@@ -41,16 +41,16 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
             logger=self.mock_logger,
         )
 
-    @patch("private_assistant_commons.messages.IntentAnalysisResult")
-    async def test_handle_client_request_message_valid(self, mock_intent_analysis_result):
+    @patch("private_assistant_commons.intent.IntentRequest")
+    async def test_handle_client_request_message_valid(self, mock_intent_request):
         mock_payload = '{"id": "12345678-1234-5678-1234-567812345678"}'
-        mock_result = mock_intent_analysis_result.model_validate_json.return_value
+        mock_result = mock_intent_request.model_validate_json.return_value
         mock_result.id = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
         await self.skill.handle_client_request_message(mock_payload)
 
-        mock_intent_analysis_result.model_validate_json.assert_called_once_with(mock_payload)
-        self.assertIn(mock_result.id, self.skill.intent_analysis_results)
+        mock_intent_request.model_validate_json.assert_called_once_with(mock_payload)
+        self.assertIn(mock_result.id, self.skill.intent_requests)
 
     async def test_handle_client_request_message_invalid(self):
         invalid_payload = '{"invalid": "json"}'
@@ -87,7 +87,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
                 mock_handle_client_request.assert_called_once_with('{"id": "12345678-1234-5678-1234-567812345678"}')
 
     async def test_add_text_to_output_topic_with_alert(self):
-        mock_request = Mock(spec=messages.ClientRequest)
+        mock_request = Mock(spec=intent.ClientRequest)
         mock_request.output_topic = "test/output"
         response_text = "Test response"
 
@@ -96,7 +96,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
 
         # Build the expected payload
         expected_alert = self.skill.default_alert
-        expected_payload = messages.Response(text=response_text, alert=expected_alert).model_dump_json()
+        expected_payload = intent.Response(text=response_text, alert=expected_alert).model_dump_json()
 
         self.mock_mqtt_client.publish.assert_called_once_with(
             topic=mock_request.output_topic,
@@ -113,7 +113,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
 
         # Build the expected payload
         expected_alert = self.skill.default_alert
-        expected_payload = messages.Response(text=response_text, alert=expected_alert).model_dump_json()
+        expected_payload = intent.Response(text=response_text, alert=expected_alert).model_dump_json()
 
         self.mock_mqtt_client.publish.assert_called_once_with(
             topic=self.mock_config.broadcast_topic,
@@ -123,18 +123,18 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_add_text_to_output_topic_with_custom_alert(self):
-        mock_request = Mock(spec=messages.ClientRequest)
+        mock_request = Mock(spec=intent.ClientRequest)
         mock_request.output_topic = "test/output"
         response_text = "Test response"
 
         # Custom alert options
-        custom_alert = messages.Alert(play_before=False, play_after=True, sound="custom_sound")
+        custom_alert = intent.Alert(play_before=False, play_after=True, sound="custom_sound")
 
         # Call the new method with custom alert
         await self.skill.publish_with_alert(response_text, client_request=mock_request, alert=custom_alert)
 
         # Build the expected payload
-        expected_payload = messages.Response(text=response_text, alert=custom_alert).model_dump_json()
+        expected_payload = intent.Response(text=response_text, alert=custom_alert).model_dump_json()
 
         self.mock_mqtt_client.publish.assert_called_once_with(
             topic=mock_request.output_topic,
@@ -147,7 +147,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         response_text = "Broadcast message"
 
         # Custom alert options
-        custom_alert = messages.Alert(play_before=True, play_after=False, sound="custom_broadcast_sound")
+        custom_alert = intent.Alert(play_before=True, play_after=False, sound="custom_broadcast_sound")
 
         # Call the new method with broadcast set to True and custom alert
         await self.skill.publish_with_alert(
@@ -157,7 +157,7 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         )
 
         # Build the expected payload
-        expected_payload = messages.Response(text=response_text, alert=custom_alert).model_dump_json()
+        expected_payload = intent.Response(text=response_text, alert=custom_alert).model_dump_json()
 
         self.mock_mqtt_client.publish.assert_called_once_with(
             topic=self.mock_config.broadcast_topic,
