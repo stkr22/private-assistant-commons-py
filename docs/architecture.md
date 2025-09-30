@@ -32,7 +32,7 @@ graph TB
     VB -->|ClientRequest<br/>MQTT| MB
     
     MB -->|ClientRequest| IAE
-    IAE -->|IntentAnalysisResult<br/>assistant/intent_engine/result| MB
+    IAE -->|IntentRequest<br/>assistant/intent_engine/result| MB
     
     MB -->|MQTT Subscribe| S1
     MB -->|MQTT Subscribe| S2  
@@ -67,7 +67,7 @@ graph TB
 **No Central Coordinator**: Originally the system had a coordinator that selected which skill should handle each request. This was removed to reduce latency.
 
 **Current Flow**:
-1. Intent Analysis Engine processes voice command → `IntentAnalysisResult`
+1. Intent Analysis Engine processes voice command → `IntentRequest` (containing `ClassifiedIntent` + `ClientRequest`)
 2. All skills receive the message via MQTT
 3. Each skill calculates its certainty score independently
 4. Skills with certainty ≥ threshold process the request
@@ -82,8 +82,10 @@ graph TB
 
 All system components communicate via MQTT using structured Pydantic models:
 
-- **ClientRequest**: Original voice command + metadata
-- **IntentAnalysisResult**: Parsed command with extracted intents
+- **ClientRequest**: Original voice command + metadata (id, text, room, output_topic)
+- **ClassifiedIntent**: Classified intent type with confidence score and extracted entities
+- **IntentRequest**: Combined wrapper containing both ClassifiedIntent and ClientRequest
+- **Entity**: Extracted component with type, normalization, and linking capabilities
 - **Response**: Skill output with optional audio alerts
 
 ### 3. Certainty-Based Processing
@@ -99,7 +101,7 @@ Skills implement `calculate_certainty()` to score their confidence in handling a
 The system distinguishes between command origin and target:
 
 - **ClientRequest.room**: Where the command was spoken ("kitchen")
-- **IntentAnalysisResult.rooms**: Target locations ("living room" for "turn off lights in living room")
+- **Entity(type=ROOM)**: Target locations extracted as entities ("living room" for "turn off lights in living room")
 - **Fallback behavior**: Skills use origin room when no target specified
 
 ### 5. Task Management & Concurrency
@@ -142,7 +144,7 @@ sequenceDiagram
     VB->>MB: ClientRequest (MQTT)
     
     MB->>IAE: ClientRequest message
-    IAE->>MB: IntentAnalysisResult<br/>topic: assistant/intent_engine/result
+    IAE->>MB: IntentRequest<br/>topic: assistant/intent_engine/result
     
     MB->>LS: MQTT message (subscribed)
     MB->>TS: MQTT message (subscribed)
@@ -167,8 +169,8 @@ sequenceDiagram
 1. **Voice Capture**: User speaks to Local Client, which streams audio to Voice Bridge via WebSocket
 2. **Speech-to-Text**: Voice Bridge sends audio chunks to local STT API for transcription
 3. **MQTT Publishing**: Voice Bridge publishes `ClientRequest` with transcribed text to MQTT broker
-4. **Intent Analysis**: Intent Analysis Engine receives `ClientRequest` and publishes `IntentAnalysisResult` to MQTT
-5. **Distributed Processing**: All skills receive the `IntentAnalysisResult` via their MQTT subscriptions
+4. **Intent Analysis**: Intent Analysis Engine receives `ClientRequest`, classifies intent, and publishes `IntentRequest` to MQTT
+5. **Distributed Processing**: All skills receive the `IntentRequest` via their MQTT subscriptions
 6. **Certainty Evaluation**: Each skill calculates confidence score independently
 7. **Selective Processing**: Only skills with certainty ≥ threshold process the request
 8. **Response Publishing**: Processing skill publishes `Response` to appropriate MQTT topic
@@ -207,7 +209,7 @@ async def listen_to_messages():
 
 # Request processing pipeline  
 async def handle_client_request_message(payload):
-    result = IntentAnalysisResult.parse(payload)
+    result = IntentRequest.parse(payload)
     certainty = await calculate_certainty(result)
     if certainty >= threshold:
         await process_request(result)

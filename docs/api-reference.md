@@ -30,14 +30,14 @@ class BaseSkill(ABC):
 ##### calculate_certainty
 ```python
 @abstractmethod
-async def calculate_certainty(self, intent_analysis_result: IntentAnalysisResult) -> float:
+async def calculate_certainty(self, intent_request: IntentRequest) -> float:
 ```
 Calculate confidence score for handling this request. Must return a value between 0.0-1.0.
 
 ##### process_request
 ```python
 @abstractmethod
-async def process_request(self, intent_analysis_result: IntentAnalysisResult) -> None:
+async def process_request(self, intent_request: IntentRequest) -> None:
 ```
 Process a request that exceeded the certainty threshold. Contains the main skill logic.
 
@@ -129,43 +129,131 @@ class ClientRequest(BaseModel):
 - **room**: Location where command was spoken
 - **output_topic**: MQTT topic for responses to this user/device
 
-### IntentAnalysisResult
+### IntentType
 
-Result of intent analysis processing on a voice command.
+Enumeration of all supported intent types in the system.
 
 ```python
-class IntentAnalysisResult(BaseModel):
+class IntentType(str, Enum):
+    DEVICE_ON = "device.on"
+    DEVICE_OFF = "device.off"
+    DEVICE_SET = "device.set"
+    DEVICE_OPEN = "device.open"
+    DEVICE_CLOSE = "device.close"
+    MEDIA_PLAY = "media.play"
+    MEDIA_STOP = "media.stop"
+    MEDIA_NEXT = "media.next"
+    QUERY_STATUS = "query.status"
+    QUERY_LIST = "query.list"
+    QUERY_TIME = "query.time"
+    SCENE_APPLY = "scene.apply"
+    SCHEDULE_SET = "schedule.set"
+    SCHEDULE_CANCEL = "schedule.cancel"
+    SYSTEM_HELP = "system.help"
+    SYSTEM_REFRESH = "system.refresh"
+```
+
+### EntityType
+
+Types of entities that can be extracted from voice commands.
+
+```python
+class EntityType(str, Enum):
+    DEVICE = "device"
+    DEVICE_TYPE = "device_type"
+    ROOM = "room"
+    NUMBER = "number"
+    DURATION = "duration"
+    TIME = "time"
+    MEDIA_ID = "media_id"
+    SCENE = "scene"
+    MODIFIER = "modifier"
+```
+
+### Entity
+
+Represents an entity extracted from a voice command.
+
+```python
+class Entity(BaseModel):
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
-    client_request: ClientRequest
-    numbers: list[NumberAnalysisResult]
-    nouns: list[str]
-    verbs: list[str]
-    rooms: list[str] = []
+    type: EntityType
+    raw_text: str
+    normalized_value: Any
+    confidence: float = 1.0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    linked_to: list[uuid.UUID] = Field(default_factory=list)
 ```
 
 **Attributes:**
-- **id**: Unique identifier for this analysis result
-- **client_request**: Original voice command and metadata
-- **numbers**: Extracted numbers with context
-- **nouns**: Extracted noun words
-- **verbs**: Extracted action words
-- **rooms**: Target room names from the command
+- **id**: Unique identifier for this entity
+- **type**: Type of entity (device, room, etc.)
+- **raw_text**: Original text that was extracted
+- **normalized_value**: Normalized/processed value (e.g., "five" → 5)
+- **confidence**: Confidence score for this entity
+- **metadata**: Additional entity metadata (e.g., units)
+- **linked_to**: IDs of related entities
 
-### NumberAnalysisResult
+### ClassifiedIntent
 
-Represents a number extracted from voice command with context.
+Result of intent classification on a voice command.
 
 ```python
-class NumberAnalysisResult(BaseModel):
-    number_token: int
-    previous_token: str | None = None
-    next_token: str | None = None
+class ClassifiedIntent(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    intent_type: IntentType
+    confidence: float
+    entities: dict[str, list[Entity]]
+    alternative_intents: list[tuple[IntentType, float]] = Field(default_factory=list)
+    raw_text: str
+    timestamp: datetime = Field(default_factory=datetime.now)
 ```
 
 **Attributes:**
-- **number_token**: The extracted numeric value
-- **previous_token**: Word before the number for context
-- **next_token**: Word after the number for context
+- **id**: Unique identifier for this classification
+- **intent_type**: Classified intent type
+- **confidence**: Confidence score for the classification
+- **entities**: Extracted entities grouped by type
+- **alternative_intents**: Alternative intent types with confidence scores
+- **raw_text**: Original voice command text
+- **timestamp**: When the classification was performed
+
+### IntentRequest
+
+Combined intent classification result and client request for skill processing.
+
+```python
+class IntentRequest(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    classified_intent: ClassifiedIntent
+    client_request: ClientRequest
+```
+
+**Attributes:**
+- **id**: Unique identifier for this request
+- **classified_intent**: The classified intent with entities
+- **client_request**: Original client request with routing information
+
+### SkillContext
+
+Context tracking for skill-side decision making.
+
+```python
+class SkillContext(BaseModel):
+    skill_name: str
+    last_action: str | None = None
+    last_executed_at: datetime | None = None
+    last_entities: dict[str, Any] = Field(default_factory=dict)
+    command_count_since_last: int = 0
+    confidence_threshold_default: float = 0.7
+    confidence_threshold_recent: float = 0.4
+    recency_window_seconds: int = 300
+    max_follow_up_commands: int = 5
+```
+
+**Methods:**
+- **should_handle(intent: ClassifiedIntent) -> bool**: Determine if skill should handle based on confidence and context
+- **should_expire() -> bool**: Check if context should expire
 
 ### Alert
 
