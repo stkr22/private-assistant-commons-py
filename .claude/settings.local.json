@@ -13,7 +13,10 @@
       "Bash(uv run:*)",
       "Bash(git push:*)",
       "Bash(gh pr create:*)",
-      "Bash(gh issue edit:*)"
+      "Bash(gh issue edit:*)",
+      "mcp__context7__resolve-library-id",
+      "Bash(mkdir:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

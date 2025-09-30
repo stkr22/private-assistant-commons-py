@@ -18,6 +18,24 @@ from private_assistant_commons import (
     SkillContext,
 )
 
+# Test constants to avoid magic values
+TEST_NUMBER_VALUE = 5
+TEST_CONFIDENCE_HIGH = 0.95
+TEST_CONFIDENCE_MEDIUM = 0.89
+TEST_CONFIDENCE_THRESHOLD_DEFAULT = 0.7
+TEST_CONFIDENCE_THRESHOLD_RECENT = 0.4
+TEST_CONFIDENCE_THRESHOLD_CUSTOM = 0.8
+TEST_CONFIDENCE_THRESHOLD_CUSTOM_RECENT = 0.5
+TEST_RECENCY_WINDOW = 300
+TEST_RECENCY_WINDOW_CUSTOM = 600
+TEST_MAX_FOLLOW_UP = 5
+TEST_MAX_FOLLOW_UP_CUSTOM = 10
+TEST_COMMAND_COUNT = 2
+TEST_ENTITY_COUNT = 2
+TEST_ALTERNATIVE_COUNT = 2
+TEST_ERROR_COUNT_MIN = 2
+TEST_LINKED_ENTITY_COUNT = 3
+
 
 class TestIntentType:
     """Test IntentType enum."""
@@ -89,16 +107,16 @@ class TestEntity:
             id=entity_id,
             type=EntityType.NUMBER,
             raw_text="five",
-            normalized_value=5,
-            confidence=0.95,
+            normalized_value=TEST_NUMBER_VALUE,
+            confidence=TEST_CONFIDENCE_HIGH,
             metadata={"unit": "minutes"},
             linked_to=[linked_id],
         )
         assert entity.id == entity_id
         assert entity.type == EntityType.NUMBER
         assert entity.raw_text == "five"
-        assert entity.normalized_value == 5
-        assert entity.confidence == 0.95
+        assert entity.normalized_value == TEST_NUMBER_VALUE
+        assert entity.confidence == TEST_CONFIDENCE_HIGH
         assert entity.metadata == {"unit": "minutes"}
         assert entity.linked_to == [linked_id]
 
@@ -116,9 +134,9 @@ class TestEntity:
         entity_int = Entity(
             type=EntityType.NUMBER,
             raw_text="five",
-            normalized_value=5,
+            normalized_value=TEST_NUMBER_VALUE,
         )
-        assert entity_int.normalized_value == 5
+        assert entity_int.normalized_value == TEST_NUMBER_VALUE
 
         # Datetime normalization
         now = datetime.now()
@@ -149,12 +167,12 @@ class TestClassifiedIntent:
         """Test creating a classified intent with minimal fields."""
         intent = ClassifiedIntent(
             intent_type=IntentType.DEVICE_ON,
-            confidence=0.95,
+            confidence=TEST_CONFIDENCE_HIGH,
             entities={},
             raw_text="turn on the lights",
         )
         assert intent.intent_type == IntentType.DEVICE_ON
-        assert intent.confidence == 0.95
+        assert intent.confidence == TEST_CONFIDENCE_HIGH
         assert intent.entities == {}
         assert intent.alternative_intents == []
         assert intent.raw_text == "turn on the lights"
@@ -177,7 +195,7 @@ class TestClassifiedIntent:
 
         intent = ClassifiedIntent(
             intent_type=IntentType.DEVICE_OFF,
-            confidence=0.89,
+            confidence=TEST_CONFIDENCE_MEDIUM,
             entities={
                 "devices": [device_entity],
                 "rooms": [room_entity],
@@ -190,11 +208,11 @@ class TestClassifiedIntent:
             timestamp=timestamp,
         )
         assert intent.intent_type == IntentType.DEVICE_OFF
-        assert intent.confidence == 0.89
-        assert len(intent.entities) == 2
+        assert intent.confidence == TEST_CONFIDENCE_MEDIUM
+        assert len(intent.entities) == TEST_ENTITY_COUNT
         assert intent.entities["devices"] == [device_entity]
         assert intent.entities["rooms"] == [room_entity]
-        assert len(intent.alternative_intents) == 2
+        assert len(intent.alternative_intents) == TEST_ALTERNATIVE_COUNT
         assert intent.alternative_intents[0] == (IntentType.DEVICE_SET, 0.65)
         assert intent.alternative_intents[1] == (IntentType.SCENE_APPLY, 0.45)
         assert intent.raw_text == "turn off bedroom lights"
@@ -210,7 +228,7 @@ class TestClassifiedIntent:
                 raw_text="test",
             )
         errors = exc_info.value.errors()
-        assert len(errors) >= 2
+        assert len(errors) >= TEST_ERROR_COUNT_MIN
 
 
 class TestSkillContext:
@@ -224,10 +242,10 @@ class TestSkillContext:
         assert context.last_executed_at is None
         assert context.last_entities == {}
         assert context.command_count_since_last == 0
-        assert context.confidence_threshold_default == 0.7
-        assert context.confidence_threshold_recent == 0.4
-        assert context.recency_window_seconds == 300
-        assert context.max_follow_up_commands == 5
+        assert context.confidence_threshold_default == TEST_CONFIDENCE_THRESHOLD_DEFAULT
+        assert context.confidence_threshold_recent == TEST_CONFIDENCE_THRESHOLD_RECENT
+        assert context.recency_window_seconds == TEST_RECENCY_WINDOW
+        assert context.max_follow_up_commands == TEST_MAX_FOLLOW_UP
 
     def test_skill_context_creation_full(self):
         """Test creating a skill context with all fields."""
@@ -237,21 +255,21 @@ class TestSkillContext:
             last_action="play_song",
             last_executed_at=now,
             last_entities={"song": "test_song"},
-            command_count_since_last=2,
-            confidence_threshold_default=0.8,
-            confidence_threshold_recent=0.5,
-            recency_window_seconds=600,
-            max_follow_up_commands=10,
+            command_count_since_last=TEST_COMMAND_COUNT,
+            confidence_threshold_default=TEST_CONFIDENCE_THRESHOLD_CUSTOM,
+            confidence_threshold_recent=TEST_CONFIDENCE_THRESHOLD_CUSTOM_RECENT,
+            recency_window_seconds=TEST_RECENCY_WINDOW_CUSTOM,
+            max_follow_up_commands=TEST_MAX_FOLLOW_UP_CUSTOM,
         )
         assert context.skill_name == "media_player"
         assert context.last_action == "play_song"
         assert context.last_executed_at == now
         assert context.last_entities == {"song": "test_song"}
-        assert context.command_count_since_last == 2
-        assert context.confidence_threshold_default == 0.8
-        assert context.confidence_threshold_recent == 0.5
-        assert context.recency_window_seconds == 600
-        assert context.max_follow_up_commands == 10
+        assert context.command_count_since_last == TEST_COMMAND_COUNT
+        assert context.confidence_threshold_default == TEST_CONFIDENCE_THRESHOLD_CUSTOM
+        assert context.confidence_threshold_recent == TEST_CONFIDENCE_THRESHOLD_CUSTOM_RECENT
+        assert context.recency_window_seconds == TEST_RECENCY_WINDOW_CUSTOM
+        assert context.max_follow_up_commands == TEST_MAX_FOLLOW_UP_CUSTOM
 
     def test_should_handle_no_recent_activity(self):
         """Test should_handle when there's no recent activity."""
@@ -360,7 +378,7 @@ class TestClientRequest:
                 output_topic=None,  # Required field
             )
         errors = exc_info.value.errors()
-        assert len(errors) >= 3
+        assert len(errors) >= TEST_LINKED_ENTITY_COUNT
 
 
 class TestAlert:
@@ -399,7 +417,7 @@ class TestIntentRequest:
 
         classified_intent = ClassifiedIntent(
             intent_type=IntentType.DEVICE_ON,
-            confidence=0.95,
+            confidence=TEST_CONFIDENCE_HIGH,
             entities={
                 "devices": [Entity(type=EntityType.DEVICE, raw_text="lights", normalized_value="lights")],
                 "rooms": [Entity(type=EntityType.ROOM, raw_text="bedroom", normalized_value="bedroom")],
@@ -424,7 +442,7 @@ class TestIntentRequest:
                 client_request="not_a_request",  # Should be ClientRequest
             )
         errors = exc_info.value.errors()
-        assert len(errors) >= 2
+        assert len(errors) >= TEST_ERROR_COUNT_MIN
 
 
 class TestResponse:
