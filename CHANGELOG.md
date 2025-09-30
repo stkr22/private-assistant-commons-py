@@ -4,6 +4,28 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [4.0.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.6.0...v4.0.0) (2025-09-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* Replaces IntentAnalysisResult with IntentRequest throughout the system
+
+### Features
+
+* ✨ add intent classification data models for structured intent processing ([321394b](https://github.com/stkr22/private-assistant-commons-py/commit/321394bc450afc56ce5bb374689015095d55348b))
+* Add intent classification data models ([65e4eb6](https://github.com/stkr22/private-assistant-commons-py/commit/65e4eb6dd994d9224288730f3fe7d12dc2606a88))
+
+
+### Bug Fixes
+
+* :rotating_light: replace magic values with constants in tests to fix linting errors [AI] ([80feca2](https://github.com/stkr22/private-assistant-commons-py/commit/80feca2ce47e25da5c7d0e66be77d109e81baf2d))
+
+
+### Documentation
+
+* 📝 update documentation for intent classification models ([7e13af5](https://github.com/stkr22/private-assistant-commons-py/commit/7e13af5db377d8d3703749cf5ce19fb9b3964bb3))
+
 ## [3.6.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.5.0...v3.6.0) (2025-07-24)
 
 
