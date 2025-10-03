@@ -9,6 +9,7 @@ from .intent import (
     EntityType,
     IntentRequest,
     IntentType,
+    RecentAction,
     Response,
     SkillContext,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "IntentRequest",
     "IntentType",
     "LoggerConfig",
+    "RecentAction",
     "Response",
     "SkillConfig",
     "SkillContext",

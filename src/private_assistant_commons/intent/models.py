@@ -29,6 +29,9 @@ class IntentType(str, Enum):
     MEDIA_PLAY = "media.play"
     MEDIA_STOP = "media.stop"
     MEDIA_NEXT = "media.next"
+    MEDIA_VOLUME_UP = "media.volume_up"
+    MEDIA_VOLUME_DOWN = "media.volume_down"
+    MEDIA_VOLUME_SET = "media.volume_set"
 
     # Queries
     QUERY_STATUS = "query.status"
@@ -107,58 +110,136 @@ class IntentRequest(BaseModel):
     client_request: ClientRequest
 
 
-# TODO - consider using dataclass for SkillContext if no validation needed
 # AIDEV-NOTE: Stateful context tracking for skill-side decision making
+class RecentAction(BaseModel):
+    """Represents a single recent action in the skill context history."""
+
+    action: str
+    executed_at: datetime
+    entities: dict[str, Any] = Field(default_factory=dict)
+
+
 class SkillContext(BaseModel):
     """Context tracking for skill-side decision making.
 
-    Manages recency-based confidence thresholds and context expiry
-    to enable intelligent follow-up command handling.
+    Provides utilities for tracking recent actions and querying context state.
+    Skills should implement their own logic for determining whether to handle
+    intents based on this context.
     """
 
     skill_name: str
-    # TODO - consider tracking multiple recent actions for more complex context
-    last_action: str | None = None
-    last_executed_at: datetime | None = None
-    last_entities: dict[str, Any] = Field(default_factory=dict)
+    recent_actions: list[RecentAction] = Field(default_factory=list)
     command_count_since_last: int = 0
-
-    # Confidence thresholds
-    confidence_threshold_default: float = 0.7
-    confidence_threshold_recent: float = 0.4
+    max_recent_actions: int = 10
 
     # Expiry settings
     recency_window_seconds: int = 300  # 5 minutes
     max_follow_up_commands: int = 5
 
-    def should_handle(self, intent: ClassifiedIntent) -> bool:
-        """Determine if skill should handle based on confidence and context.
+    def has_recent_activity(self) -> bool:
+        """Check if there are any valid recent actions.
+
+        Returns:
+            True if there are recent actions within the recency window
+        """
+        self._cleanup_expired_actions()
+        return len(self.recent_actions) > 0
+
+    def find_recent_action(self, action: str, within_seconds: int | None = None) -> RecentAction | None:
+        """Find a specific action in recent history.
 
         Args:
-            intent: The classified intent to evaluate
+            action: The action name to search for
+            within_seconds: Optional time window to search within (defaults to recency_window_seconds)
 
         Returns:
-            True if the skill should handle this intent, False otherwise
+            The most recent matching action, or None if not found
         """
-        # If no recent activity or context has expired, use default threshold
-        if self.last_executed_at is None or self.should_expire():
-            return intent.confidence >= self.confidence_threshold_default
+        self._cleanup_expired_actions()
 
-        # Recently active - accept lower confidence
-        return intent.confidence >= self.confidence_threshold_recent
+        if not self.recent_actions:
+            return None
 
-    def should_expire(self) -> bool:
-        """Check if context should expire.
+        time_window = within_seconds if within_seconds is not None else self.recency_window_seconds
+        cutoff_time = datetime.now().timestamp() - time_window
+
+        # Search backwards through recent actions
+        for recent_action in reversed(self.recent_actions):
+            if recent_action.action == action and recent_action.executed_at.timestamp() > cutoff_time:
+                return recent_action
+
+        return None
+
+    def has_recent_intent(self, intent_type: IntentType | str) -> bool:
+        """Check if a specific intent type was recently handled.
+
+        Args:
+            intent_type: The intent type to search for
 
         Returns:
-            True if the context has expired and should be reset
+            True if this intent type was recently handled
         """
-        if self.last_executed_at:
-            time_since = datetime.now() - self.last_executed_at
-            if time_since.total_seconds() > self.recency_window_seconds:
-                return True
+        intent_str = intent_type.value if isinstance(intent_type, IntentType) else intent_type
+        return self.find_recent_action(intent_str) is not None
 
-        return self.command_count_since_last >= self.max_follow_up_commands
+    def _cleanup_expired_actions(self) -> None:
+        """Remove expired actions from the history based on recency window."""
+        if not self.recent_actions:
+            return
+
+        now = datetime.now()
+        cutoff_time = now.timestamp() - self.recency_window_seconds
+
+        # Keep only actions within the recency window
+        self.recent_actions = [action for action in self.recent_actions if action.executed_at.timestamp() > cutoff_time]
+
+    def add_action(self, action: str, entities: dict[str, Any] | None = None) -> None:
+        """Add a new action to the recent actions history.
+
+        Args:
+            action: Name of the action executed
+            entities: Optional entities associated with the action
+        """
+        recent_action = RecentAction(
+            action=action,
+            executed_at=datetime.now(),
+            entities=entities or {},
+        )
+        self.recent_actions.append(recent_action)
+
+        # Trim to max size
+        if len(self.recent_actions) > self.max_recent_actions:
+            self.recent_actions = self.recent_actions[-self.max_recent_actions :]
+
+    def get_last_action(self) -> RecentAction | None:
+        """Get the most recent action.
+
+        Returns:
+            The most recent action, or None if no actions exist
+        """
+        return self.recent_actions[-1] if self.recent_actions else None
+
+    def get_recent_entities(self, entity_type: str | None = None) -> dict[str, Any]:
+        """Get entities from recent actions.
+
+        Args:
+            entity_type: Optional filter for specific entity type
+
+        Returns:
+            Dictionary of entities from the most recent action, or all recent entities
+        """
+        if not self.recent_actions:
+            return {}
+
+        if entity_type:
+            # Search backwards through recent actions for this entity type
+            for action in reversed(self.recent_actions):
+                if entity_type in action.entities:
+                    return {entity_type: action.entities[entity_type]}
+            return {}
+
+        # Return all entities from the most recent action
+        return self.recent_actions[-1].entities
 
 
 # AIDEV-NOTE: Original voice command from user with routing information
