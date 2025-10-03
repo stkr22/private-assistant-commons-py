@@ -4,6 +4,13 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [4.1.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.0.0...v4.1.0) (2025-10-03)
+
+
+### Features
+
+* ✨ add RecentAction model and flexible SkillContext API ([da4f067](https://github.com/stkr22/private-assistant-commons-py/commit/da4f06765187c5feafe0401db3d398d68f68cf40))
+
 ## [4.0.0](https://github.com/stkr22/private-assistant-commons-py/compare/v3.6.0...v4.0.0) (2025-09-30)
 
 
