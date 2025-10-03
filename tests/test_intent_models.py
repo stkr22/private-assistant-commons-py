@@ -14,6 +14,7 @@ from private_assistant_commons import (
     EntityType,
     IntentRequest,
     IntentType,
+    RecentAction,
     Response,
     SkillContext,
 )
@@ -238,117 +239,119 @@ class TestSkillContext:
         """Test creating a skill context with minimal fields."""
         context = SkillContext(skill_name="light_control")
         assert context.skill_name == "light_control"
-        assert context.last_action is None
-        assert context.last_executed_at is None
-        assert context.last_entities == {}
+        assert context.recent_actions == []
         assert context.command_count_since_last == 0
-        assert context.confidence_threshold_default == TEST_CONFIDENCE_THRESHOLD_DEFAULT
-        assert context.confidence_threshold_recent == TEST_CONFIDENCE_THRESHOLD_RECENT
         assert context.recency_window_seconds == TEST_RECENCY_WINDOW
         assert context.max_follow_up_commands == TEST_MAX_FOLLOW_UP
 
     def test_skill_context_creation_full(self):
         """Test creating a skill context with all fields."""
-        now = datetime.now()
         context = SkillContext(
             skill_name="media_player",
-            last_action="play_song",
-            last_executed_at=now,
-            last_entities={"song": "test_song"},
             command_count_since_last=TEST_COMMAND_COUNT,
-            confidence_threshold_default=TEST_CONFIDENCE_THRESHOLD_CUSTOM,
-            confidence_threshold_recent=TEST_CONFIDENCE_THRESHOLD_CUSTOM_RECENT,
             recency_window_seconds=TEST_RECENCY_WINDOW_CUSTOM,
             max_follow_up_commands=TEST_MAX_FOLLOW_UP_CUSTOM,
         )
         assert context.skill_name == "media_player"
-        assert context.last_action == "play_song"
-        assert context.last_executed_at == now
-        assert context.last_entities == {"song": "test_song"}
         assert context.command_count_since_last == TEST_COMMAND_COUNT
-        assert context.confidence_threshold_default == TEST_CONFIDENCE_THRESHOLD_CUSTOM
-        assert context.confidence_threshold_recent == TEST_CONFIDENCE_THRESHOLD_CUSTOM_RECENT
         assert context.recency_window_seconds == TEST_RECENCY_WINDOW_CUSTOM
         assert context.max_follow_up_commands == TEST_MAX_FOLLOW_UP_CUSTOM
 
-    def test_should_handle_no_recent_activity(self):
-        """Test should_handle when there's no recent activity."""
+    def test_has_recent_activity(self):
+        """Test checking for recent activity."""
+        context = SkillContext(skill_name="test_skill")
+
+        # No activity initially
+        assert context.has_recent_activity() is False
+
+        # Add an action
+        context.add_action("turn_on", {"device": "lights"})
+        assert context.has_recent_activity() is True
+
+    def test_find_recent_action(self):
+        """Test finding specific actions in history."""
         context = SkillContext(
             skill_name="test_skill",
-            confidence_threshold_default=0.7,
-        )
-        intent = ClassifiedIntent(
-            intent_type=IntentType.DEVICE_ON,
-            confidence=0.8,
-            entities={},
-            raw_text="test",
-        )
-        assert context.should_handle(intent) is True
-
-        low_confidence_intent = ClassifiedIntent(
-            intent_type=IntentType.DEVICE_ON,
-            confidence=0.6,
-            entities={},
-            raw_text="test",
-        )
-        assert context.should_handle(low_confidence_intent) is False
-
-    def test_should_handle_recent_activity(self):
-        """Test should_handle when there's recent activity."""
-        context = SkillContext(
-            skill_name="test_skill",
-            last_executed_at=datetime.now(),
-            confidence_threshold_default=0.7,
-            confidence_threshold_recent=0.4,
-        )
-        intent = ClassifiedIntent(
-            intent_type=IntentType.DEVICE_ON,
-            confidence=0.5,
-            entities={},
-            raw_text="test",
-        )
-        # Recent activity, so lower threshold applies
-        assert context.should_handle(intent) is True
-
-        very_low_confidence = ClassifiedIntent(
-            intent_type=IntentType.DEVICE_ON,
-            confidence=0.3,
-            entities={},
-            raw_text="test",
-        )
-        assert context.should_handle(very_low_confidence) is False
-
-    def test_should_expire_time_based(self):
-        """Test context expiry based on time."""
-        # Not expired - recent activity
-        context = SkillContext(
-            skill_name="test_skill",
-            last_executed_at=datetime.now() - timedelta(seconds=100),
             recency_window_seconds=300,
         )
-        assert context.should_expire() is False
 
-        # Expired - old activity
-        context.last_executed_at = datetime.now() - timedelta(seconds=400)
-        assert context.should_expire() is True
+        # Add multiple actions
+        context.add_action("turn_on", {"device": "lights"})
+        context.add_action("turn_off", {"device": "fan"})
+        context.add_action("turn_on", {"device": "tv"})
 
-    def test_should_expire_command_count(self):
-        """Test context expiry based on command count."""
+        # Find most recent turn_on
+        action = context.find_recent_action("turn_on")
+        assert action is not None
+        assert action.action == "turn_on"
+        assert action.entities == {"device": "tv"}
+
+        # Find turn_off
+        action = context.find_recent_action("turn_off")
+        assert action is not None
+        assert action.entities == {"device": "fan"}
+
+        # Non-existent action
+        action = context.find_recent_action("nonexistent")
+        assert action is None
+
+    def test_has_recent_intent(self):
+        """Test checking for recent intent types."""
+        context = SkillContext(skill_name="test_skill")
+
+        # Add action matching an intent type value
+        context.add_action("device.on", {"device": "lights"})
+
+        # Check using IntentType enum
+        assert context.has_recent_intent(IntentType.DEVICE_ON) is True
+        assert context.has_recent_intent(IntentType.DEVICE_OFF) is False
+
+        # Check using string
+        assert context.has_recent_intent("device.on") is True
+        assert context.has_recent_intent("device.off") is False
+
+    def test_cleanup_expired_actions(self):
+        """Test automatic cleanup of expired actions."""
+        # Recent activity - should be kept after cleanup
         context = SkillContext(
             skill_name="test_skill",
-            last_executed_at=datetime.now(),
-            command_count_since_last=3,
-            max_follow_up_commands=5,
+            recency_window_seconds=300,
         )
-        assert context.should_expire() is False
+        context.recent_actions.append(
+            RecentAction(action="test", executed_at=datetime.now() - timedelta(seconds=100), entities={})
+        )
+        context._cleanup_expired_actions()
+        assert len(context.recent_actions) == 1
 
-        context.command_count_since_last = 5
-        assert context.should_expire() is True
+        # Expired - old activity should be removed after cleanup
+        context.recent_actions.append(
+            RecentAction(action="old_test", executed_at=datetime.now() - timedelta(seconds=400), entities={})
+        )
+        context._cleanup_expired_actions()
+        # Only the recent action (100 seconds old) should remain
+        assert len(context.recent_actions) == 1
+        assert context.recent_actions[0].action == "test"
 
-    def test_should_expire_no_activity(self):
-        """Test context expiry when there's no previous activity."""
-        context = SkillContext(skill_name="test_skill")
-        assert context.should_expire() is False
+    def test_find_recent_action_with_custom_window(self):
+        """Test finding actions within a custom time window."""
+        context = SkillContext(
+            skill_name="test_skill",
+            recency_window_seconds=300,
+        )
+
+        # Add an action from 150 seconds ago
+        context.recent_actions.append(
+            RecentAction(action="test", executed_at=datetime.now() - timedelta(seconds=150), entities={})
+        )
+
+        # Should find with default window (300s)
+        assert context.find_recent_action("test") is not None
+
+        # Should NOT find with 100s window
+        assert context.find_recent_action("test", within_seconds=100) is None
+
+        # Should find with 200s window
+        assert context.find_recent_action("test", within_seconds=200) is not None
 
 
 class TestClientRequest:
