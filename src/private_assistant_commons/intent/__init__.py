@@ -8,6 +8,7 @@ from .models import (
     EntityType,
     IntentRequest,
     IntentType,
+    RecentAction,
     Response,
     SkillContext,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "EntityType",
     "IntentRequest",
     "IntentType",
+    "RecentAction",
     "Response",
     "SkillContext",
 ]
