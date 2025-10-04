@@ -72,7 +72,6 @@ class TestEntityType:
     def test_entity_type_values(self):
         """Test that all entity types have correct values."""
         assert EntityType.DEVICE.value == "device"
-        assert EntityType.DEVICE_TYPE.value == "device_type"
         assert EntityType.ROOM.value == "room"
         assert EntityType.NUMBER.value == "number"
         assert EntityType.DURATION.value == "duration"
@@ -159,6 +158,52 @@ class TestEntity:
         errors = exc_info.value.errors()
         assert len(errors) == 1
         assert errors[0]["loc"] == ("type",)
+
+    def test_device_entity_with_metadata(self):
+        """Test DEVICE entity with device_type metadata."""
+        # Generic device reference
+        generic_device = Entity(
+            type=EntityType.DEVICE,
+            raw_text="lights",
+            normalized_value="light",
+            metadata={
+                "device_type": "light",
+                "is_generic": True,
+            },
+        )
+        assert generic_device.type == EntityType.DEVICE
+        assert generic_device.metadata["device_type"] == "light"
+        assert generic_device.metadata["is_generic"] is True
+
+        # Specific device reference
+        specific_device = Entity(
+            type=EntityType.DEVICE,
+            raw_text="bedroom lamp",
+            normalized_value="bedroom_lamp",
+            metadata={
+                "device_type": "light",
+                "is_generic": False,
+                "room": "bedroom",
+            },
+        )
+        assert specific_device.type == EntityType.DEVICE
+        assert specific_device.metadata["device_type"] == "light"
+        assert specific_device.metadata["is_generic"] is False
+        assert specific_device.metadata["room"] == "bedroom"
+
+        # Service/Platform as device
+        service_device = Entity(
+            type=EntityType.DEVICE,
+            raw_text="spotify",
+            normalized_value="spotify",
+            metadata={
+                "device_type": "media_service",
+                "is_generic": False,
+            },
+        )
+        assert service_device.type == EntityType.DEVICE
+        assert service_device.metadata["device_type"] == "media_service"
+        assert service_device.metadata["is_generic"] is False
 
 
 class TestClassifiedIntent:

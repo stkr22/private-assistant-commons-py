@@ -160,7 +160,6 @@ Types of entities that can be extracted from voice commands.
 ```python
 class EntityType(str, Enum):
     DEVICE = "device"
-    DEVICE_TYPE = "device_type"
     ROOM = "room"
     NUMBER = "number"
     DURATION = "duration"
@@ -191,8 +190,51 @@ class Entity(BaseModel):
 - **raw_text**: Original text that was extracted
 - **normalized_value**: Normalized/processed value (e.g., "five" → 5)
 - **confidence**: Confidence score for this entity
-- **metadata**: Additional entity metadata (e.g., units)
+- **metadata**: Additional entity metadata (e.g., units, device_type)
 - **linked_to**: IDs of related entities
+
+**Device Entity Metadata:**
+For `DEVICE` entities, the metadata dictionary should include:
+- **device_type**: The type/category of the device (e.g., "light", "media_service")
+- **is_generic**: Whether this is a generic reference (e.g., "lights") or specific (e.g., "bedroom lamp")
+- Additional context like "room" for location-specific devices
+
+**Example:**
+```python
+# Generic device reference
+Entity(
+    type=EntityType.DEVICE,
+    raw_text="lights",
+    normalized_value="light",
+    metadata={
+        "device_type": "light",
+        "is_generic": True
+    }
+)
+
+# Specific device with room context
+Entity(
+    type=EntityType.DEVICE,
+    raw_text="bedroom lamp",
+    normalized_value="bedroom_lamp",
+    metadata={
+        "device_type": "light",
+        "is_generic": False,
+        "room": "bedroom"
+    }
+)
+
+# Service/Platform as device
+Entity(
+    type=EntityType.DEVICE,
+    raw_text="spotify",
+    normalized_value="spotify",
+    metadata={
+        "device_type": "media_service",
+        "is_generic": False
+    }
+)
+```
 
 ### ClassifiedIntent
 

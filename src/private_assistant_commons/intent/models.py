@@ -54,7 +54,6 @@ class EntityType(str, Enum):
     """Types of entities that can be extracted from voice commands."""
 
     DEVICE = "device"
-    DEVICE_TYPE = "device_type"
     ROOM = "room"
     NUMBER = "number"
     DURATION = "duration"
@@ -70,6 +69,11 @@ class Entity(BaseModel):
 
     Entities are normalized components of a voice command with
     type information, confidence scoring, and relationship tracking.
+
+    For DEVICE entities, the metadata should include:
+    - device_type: The type/category of the device (e.g., "light", "media_service")
+    - is_generic: Whether this is a generic reference (e.g., "lights") or specific (e.g., "bedroom lamp")
+    - Additional context like "room" for location-specific devices
     """
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
