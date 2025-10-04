@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [4.2.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.1.0...v4.2.0) (2025-10-04)
+
+
+### Features
+
+* ✨ merge DEVICE_TYPE into DEVICE entity with metadata ([fd3ff4a](https://github.com/stkr22/private-assistant-commons-py/commit/fd3ff4a27d416d1b77f079811b00560a3e2c3f95)), closes [#73](https://github.com/stkr22/private-assistant-commons-py/issues/73)
+* ✨ merge DEVICE_TYPE into DEVICE entity with metadata ([6d2b496](https://github.com/stkr22/private-assistant-commons-py/commit/6d2b4964fc6abd4500843ed5c8047fe3ad583ca4)), closes [#73](https://github.com/stkr22/private-assistant-commons-py/issues/73)
+
 ## [4.1.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.0.0...v4.1.0) (2025-10-03)
 
 
