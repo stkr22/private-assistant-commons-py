@@ -29,6 +29,8 @@ dependencies = [
     "aiomqtt~=2.4.0",
     "pyyaml~=6.0.1",
     "rich~=13.9.4",
+    "sqlmodel~=0.0.25",
+    "asyncpg~=0.30.0",
 ]
 
 [project.urls]
