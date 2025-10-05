@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [4.3.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.2.0...v4.3.0) (2025-10-05)
+
+
+### Features
+
+* ✨ add database models for global device registry ([cfdc15e](https://github.com/stkr22/private-assistant-commons-py/commit/cfdc15e23bfa9fc43e68c9d9ee7f8da9938dfd34))
+* ✨ add database models for global device registry ([c75227b](https://github.com/stkr22/private-assistant-commons-py/commit/c75227b1db377f95db5d998258b465bcadae6b6d)), closes [#76](https://github.com/stkr22/private-assistant-commons-py/issues/76)
+
 ## [4.2.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.1.0...v4.2.0) (2025-10-04)
 
 
