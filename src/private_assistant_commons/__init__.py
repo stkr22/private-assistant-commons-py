@@ -1,7 +1,7 @@
 """Common utilities and base functionalities for all skills in the Private Assistant ecosystem."""
 
 from .base_skill import BaseSkill
-from .database import GlobalDevice, Room, Skill
+from .database import DeviceType, GlobalDevice, Room, Skill
 from .intent import (
     Alert,
     ClassifiedIntent,
@@ -23,6 +23,7 @@ __all__ = [
     "BaseSkill",
     "ClassifiedIntent",
     "ClientRequest",
+    "DeviceType",
     "Entity",
     "EntityType",
     "GlobalDevice",
