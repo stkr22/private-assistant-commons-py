@@ -4,6 +4,13 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [4.3.1](https://github.com/stkr22/private-assistant-commons-py/compare/v4.3.0...v4.3.1) (2025-10-05)
+
+
+### Miscellaneous Chores
+
+* force release ([1b37d66](https://github.com/stkr22/private-assistant-commons-py/commit/1b37d66d683985bb0f152ff74b9e290b5db91316))
+
 ## [4.3.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.2.0...v4.3.0) (2025-10-05)
 
 
