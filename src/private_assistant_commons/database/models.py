@@ -36,9 +36,10 @@ Example:
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import ARRAY, Column, String
+from sqlalchemy import ARRAY, JSON, Column, String
 from sqlmodel import Field, SQLModel
 
 
@@ -127,6 +128,7 @@ class GlobalDevice(SQLModel, table=True):
         device_type_id: Foreign key to the device type
         name: Human-readable device name
         pattern: List of pattern strings for matching natural language commands
+        device_attributes: Skill-specific metadata (MQTT paths, templates, state mappings, etc.)
         room_id: Optional foreign key to the room where device is located
         skill_id: Foreign key to the skill that manages this device
         created_at: Timestamp when the device was registered
@@ -144,6 +146,9 @@ class GlobalDevice(SQLModel, table=True):
     device_type_id: UUID = Field(foreign_key="device_types.id", index=True)
     name: str = Field(index=True)
     pattern: list[str] = Field(sa_column=Column(ARRAY(String)))
+    device_attributes: dict[str, Any] | None = Field(
+        default=None, sa_column=Column(JSON), description="Skill-specific device metadata (MQTT paths, templates, etc.)"
+    )
 
     # Foreign key relationships
     room_id: UUID | None = Field(default=None, foreign_key="rooms.id", index=True)
