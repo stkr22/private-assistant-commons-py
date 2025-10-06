@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     import logging
 
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
 import aiomqtt
 from pydantic import ValidationError
 
@@ -79,13 +81,14 @@ class BaseSkill(ABC):
         task_ref: weakref.ReferenceType
         metadata: dict[str, Any]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         config_obj: skill_config.SkillConfig,
         mqtt_client: aiomqtt.Client,
         task_group: asyncio.TaskGroup,
         certainty_threshold: float = 0.8,
         logger: logging.Logger | None = None,
+        engine: AsyncEngine | None = None,
     ) -> None:
         """Initialize the base skill.
 
@@ -95,6 +98,7 @@ class BaseSkill(ABC):
             task_group: TaskGroup for managing concurrent operations
             certainty_threshold: Minimum confidence score to process requests (0.0-1.0)
             logger: Optional custom logger, defaults to skill-specific logger
+            engine: Optional async database engine for DeviceRegistryMixin
         """
         self.config_obj: skill_config.SkillConfig = config_obj
         self.certainty_threshold: float = certainty_threshold
@@ -105,6 +109,7 @@ class BaseSkill(ABC):
         self.task_group: asyncio.TaskGroup = task_group
         self.logger = logger or skill_logger.SkillLogger.get_logger(__name__)
         self.default_alert = intent.Alert(play_before=True)
+        self._engine: AsyncEngine | None = engine
 
         # AIDEV-NOTE: Task lifecycle management for monitoring and debugging
         self._active_tasks: dict[int, BaseSkill.TaskInfo] = {}
@@ -571,3 +576,24 @@ class BaseSkill(ABC):
                 for task_id, info in self._active_tasks.items()
             ],
         }
+
+    @property
+    def engine(self) -> AsyncEngine:
+        """Get the database engine for device registry operations.
+
+        Returns:
+            AsyncEngine: SQLAlchemy async engine
+
+        Raises:
+            RuntimeError: If engine was not configured during initialization
+
+        Note:
+            Skills using DeviceRegistryMixin must pass engine parameter to BaseSkill.__init__()
+        """
+        if self._engine is None:
+            msg = (
+                "Database engine not configured. "
+                "Set engine parameter in BaseSkill.__init__() to use DeviceRegistryMixin"
+            )
+            raise RuntimeError(msg)
+        return self._engine

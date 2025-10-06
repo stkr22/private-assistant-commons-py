@@ -370,14 +370,18 @@ wheels = [
 
 [[package]]
 name = "private-assistant-commons"
-version = "4.3.0"
+version = "4.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiomqtt" },
-    { name = "asyncpg" },
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "rich" },
+]
+
+[package.optional-dependencies]
+database = [
+    { name = "asyncpg" },
     { name = "sqlmodel" },
 ]
 
@@ -397,12 +401,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "aiomqtt", specifier = "~=2.4.0" },
-    { name = "asyncpg", specifier = "~=0.30.0" },
+    { name = "asyncpg", marker = "extra == 'database'", specifier = "~=0.30.0" },
     { name = "pydantic", specifier = "~=2.9.2" },
     { name = "pyyaml", specifier = "~=6.0.1" },
     { name = "rich", specifier = "~=13.9.4" },
-    { name = "sqlmodel", specifier = "~=0.0.25" },
+    { name = "sqlmodel", marker = "extra == 'database'", specifier = "~=0.0.25" },
 ]
+provides-extras = ["database"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -49,10 +49,19 @@ class SkillConfig(BaseModel):
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
     broadcast_topic: str = "assistant/comms_bridge/broadcast"
     intent_cache_size: int = Field(default=1000, description="Maximum number of intent analysis results to cache")
+    device_update_topic: str = Field(
+        default="assistant/global_device_update",
+        description="MQTT topic for device registry update notifications",
+    )
 
     @property
     def feedback_topic(self) -> str:
         return f"{self.base_topic}/{self.client_id}/feedback"
+
+    @property
+    def skill_id(self) -> str:
+        """Get skill identifier (alias for client_id for DeviceRegistryMixin compatibility)."""
+        return self.client_id
 
 
 def combine_yaml_files(file_paths: list[Path]) -> dict[str, Any]:
