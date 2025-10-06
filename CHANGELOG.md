@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [4.4.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.3.1...v4.4.0) (2025-10-06)
+
+
+### Features
+
+* ✨ add device registry mixin with optional database dependencies [AI] ([a6c3024](https://github.com/stkr22/private-assistant-commons-py/commit/a6c302470f158940366e9b1f8fddfe2a69e26e48))
+* ✨ add device registry mixin with optional database dependencies [AI] ([ed83033](https://github.com/stkr22/private-assistant-commons-py/commit/ed83033fe8ee719d67785ddead3cd57d7de35a6a)), closes [#81](https://github.com/stkr22/private-assistant-commons-py/issues/81)
+
 ## [4.3.1](https://github.com/stkr22/private-assistant-commons-py/compare/v4.3.0...v4.3.1) (2025-10-05)
 
 
