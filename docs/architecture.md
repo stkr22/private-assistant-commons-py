@@ -88,13 +88,65 @@ All system components communicate via MQTT using structured Pydantic models:
 - **Entity**: Extracted component with type, normalization, and linking capabilities
 - **Response**: Skill output with optional audio alerts
 
-### 3. Certainty-Based Processing
+### 3. Intent-Based Processing with Context-Aware Confidence
 
-Skills implement `calculate_certainty()` to score their confidence in handling a request:
+Skills configure their intent handling via simple instance attributes set in `__init__`:
 
-- **Simple keyword matching** (most common): Check for specific words/phrases
-- **Complex analysis**: Multiple factors like verbs, nouns, context
-- **Threshold filtering**: Only process if certainty ≥ configured threshold (default 0.8)
+#### Step 1: Intent Matching with Per-Intent Thresholds
+Skills define supported intents as a dict mapping intent types to confidence thresholds:
+
+```python
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    # Per-intent confidence thresholds
+    self.supported_intents = {
+        IntentType.DEVICE_ON: 0.8,    # Standard threshold
+        IntentType.DEVICE_OFF: 0.8,   # Standard threshold
+        IntentType.DEVICE_SET: 0.9,   # Higher threshold for critical actions
+    }
+```
+
+The BaseSkill automatically filters out unsupported intent types for efficient processing.
+
+#### Step 2: Confidence Evaluation
+The intent engine assigns confidence scores based on pattern matching quality:
+- **1.0** - Multi-word keyword + context hints (e.g., "turn on" + "lights")
+- **0.9** - Multi-word keyword alone OR single keyword + multiple context hints
+- **0.8** - Single keyword + single context hint OR all pattern keywords present
+- **0.5** - Single keyword match without context
+- **0.3** - Context hints without keywords
+
+Skills can define **confidence modifiers** to lower thresholds for contextually related follow-up commands:
+
+```python
+    # Confidence modifiers for context-aware processing
+    # Key is the intent being impacted, value is list of modifiers
+    self.confidence_modifiers = {
+        IntentType.DEVICE_OFF: [
+            ConfidenceModifier(
+                trigger_intent=IntentType.DEVICE_ON,  # If this was recently handled
+                lowers_threshold_for=IntentType.DEVICE_OFF,  # Lower threshold for this
+                reduced_threshold=0.5,  # Down to this level
+                time_window_seconds=300  # Within this window
+            )
+        ]
+    }
+```
+
+The dict structure allows efficient O(1) lookup by target intent, and supports multiple modifiers per intent. This improves conversation flow - if a user just said "turn on the lights", a follow-up "turn them off" with lower confidence will still be accepted.
+
+#### Step 3: Entity Matching (Optional)
+Skills can optionally define entity matchers for additional validation:
+
+```python
+    # Optional: Entity matchers for validation
+    self.entity_matchers = {
+        "devices": lambda devices: any("light" in d.raw_text.lower() for d in devices)
+    }
+```
+
+If no entity matchers are defined, all intents that pass the confidence check are processed.
 
 ### 4. Location-Aware Processing
 
@@ -207,12 +259,43 @@ async def listen_to_messages():
         if message.topic.matches(intent_topic):
             await handle_client_request_message(payload)
 
-# Request processing pipeline  
+# Request processing pipeline
 async def handle_client_request_message(payload):
-    result = IntentRequest.parse(payload)
-    certainty = await calculate_certainty(result)
-    if certainty >= threshold:
-        await process_request(result)
+    intent_request = IntentRequest.parse(payload)
+
+    # Step 1: Check if intent type is in self.supported_intents
+    if intent_request.classified_intent.intent_type not in self.supported_intents:
+        return  # Skip - not relevant to this skill
+
+    # Step 2: Get per-intent threshold and apply confidence modifiers
+    required_confidence = self.supported_intents[intent_request.classified_intent.intent_type]
+    effective_threshold = required_confidence
+
+    # Check modifiers via O(1) dict lookup
+    modifiers_for_intent = self.confidence_modifiers.get(intent_request.classified_intent.intent_type, [])
+    for modifier in modifiers_for_intent:
+        if self.skill_context.has_recent_intent(modifier.trigger_intent):
+            effective_threshold = min(effective_threshold, modifier.reduced_threshold)
+
+    if intent_request.classified_intent.confidence < effective_threshold:
+        return  # Skip - confidence too low
+
+    # Step 3: Check entity matchers (if defined)
+    if self.entity_matchers:
+        matched = False
+        for entity_type, matcher in self.entity_matchers.items():
+            entities = intent_request.classified_intent.entities.get(entity_type, [])
+            if entities and matcher(entities):
+                matched = True
+                break
+        if not matched:
+            return  # Skip - entities don't match
+
+    # All checks passed - process the request
+    await process_request(intent_request)
+
+    # Track in context for future threshold adjustments
+    self.skill_context.add_action(intent_request.classified_intent.intent_type.value)
 ```
 
 ## Integration Points
@@ -224,8 +307,68 @@ async def handle_client_request_message(payload):
 
 ### External Systems
 - **Voice Bridge**: Audio input/output via FastAPI WebSocket
-- **Databases**: Optional PostgreSQL for skill persistence
-- **APIs**: Skills can integrate with external services
+- **PostgreSQL Database**: Required for global device registry and skill registration
+- **APIs**: Skills can integrate with external services (Home Assistant, Spotify, weather APIs, etc.)
+
+## Device Registry
+
+All skills participate in the global device registry for intent engine pattern matching. The registry enables the intent engine to:
+- Match specific devices in voice commands ("turn on bedroom lamp")
+- Resolve generic device types ("turn on lights" → all light devices)
+- Provide context hints for intent classification
+
+### Database Requirement
+
+**PostgreSQL database is mandatory** for all skills. The database stores:
+- Skills: Registered skill instances with unique names
+- Device Types: Categories of devices (light, switch, timer, alarm, etc.)
+- Devices: Specific devices with pattern strings for NL matching
+- Rooms: Optional location associations for devices
+
+### Automatic Registration
+
+Skills are automatically registered during `skill_preparations()`:
+1. Skill registration (idempotent by name)
+2. Device type registration (from `supported_device_types` list)
+3. Devices can then be registered by the skill
+
+**Static Devices** (Timer/Alarm):
+```python
+class TimerSkill(BaseSkill):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.supported_device_types = ["timer", "alarm"]
+
+    async def skill_preparations(self):
+        await super().skill_preparations()  # Auto-registers skill + device types
+
+        # Register static devices
+        await self.register_device("timer", "timer", ["timer", "set timer"])
+        await self.register_device("alarm", "alarm", ["alarm", "set alarm"])
+```
+
+**Dynamic Devices** (Lights from Home Assistant):
+```python
+class SwitchSkill(BaseSkill):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.supported_device_types = ["light", "switch"]
+
+    async def skill_preparations(self):
+        await super().skill_preparations()  # Auto-registers skill + device types
+
+        # Sync devices from external system
+        await self._sync_devices_from_home_assistant()
+
+        # Schedule periodic refresh
+        self.add_task(self._periodic_device_sync(interval=300))
+```
+
+### MQTT Notifications
+
+When devices are registered, skills automatically publish to `assistant/global_device_update` topic, triggering the intent engine to refresh its device cache.
+
+Skills also listen to this topic to reactively refresh their device cache when external systems (like a device management interface) modify devices in the database. This listener runs as a background task started during `skill_preparations()`.
 
 ## Configuration Management
 
@@ -234,10 +377,10 @@ Skills use `SkillConfig` for:
 - Topic hierarchy configuration
 - Skill-specific settings via YAML files
 
-Optional `PostgresConfig` for skills requiring persistence:
-- Token storage (e.g., Spotify authentication)
-- User preferences
-- Historical data
+`PostgresConfig` (required) for database connection:
+- Connection string generation for sync/async operations
+- Environment variable loading (POSTGRES_USER, POSTGRES_PASSWORD, etc.)
+- Used by all skills for device registry access
 
 ## Error Handling
 

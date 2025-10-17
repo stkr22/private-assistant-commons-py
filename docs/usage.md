@@ -11,33 +11,61 @@ pip install private-assistant-commons
 ### Basic Skill Implementation
 
 ```python
-from private_assistant_commons import BaseSkill, IntentRequest, IntentType, EntityType
+from private_assistant_commons import (
+    BaseSkill,
+    IntentRequest,
+    IntentType,
+    ConfidenceModifier,
+)
 
 class LightControlSkill(BaseSkill):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Configure supported intents with per-intent confidence thresholds
+        self.supported_intents = {
+            IntentType.DEVICE_ON: 0.8,    # Require 0.8 confidence to turn on
+            IntentType.DEVICE_OFF: 0.8,   # Require 0.8 confidence to turn off
+            IntentType.DEVICE_SET: 0.9,   # Higher threshold for setting values
+        }
+
+        # Define confidence modifiers for context-aware processing
+        # Key is the intent being impacted, value is list of modifiers
+        self.confidence_modifiers = {
+            IntentType.DEVICE_OFF: [
+                # If user just turned on lights, allow lower confidence for turning them off
+                ConfidenceModifier(
+                    trigger_intent=IntentType.DEVICE_ON,
+                    lowers_threshold_for=IntentType.DEVICE_OFF,
+                    reduced_threshold=0.5,
+                    time_window_seconds=300,
+                ),
+            ],
+            IntentType.DEVICE_ON: [
+                # And vice versa
+                ConfidenceModifier(
+                    trigger_intent=IntentType.DEVICE_OFF,
+                    lowers_threshold_for=IntentType.DEVICE_ON,
+                    reduced_threshold=0.5,
+                    time_window_seconds=300,
+                ),
+            ],
+        }
+
     async def skill_preparations(self) -> None:
         """Initialize any resources needed by the skill."""
         self.logger.info("Light control skill initialized")
-        
-    async def calculate_certainty(self, intent_request: IntentRequest) -> float:
-        """Calculate confidence score for handling this request."""
-        intent = intent_request.classified_intent
 
-        # Check for light-related intent types
-        light_intents = {IntentType.DEVICE_ON, IntentType.DEVICE_OFF, IntentType.DEVICE_SET}
-
-        if intent.intent_type in light_intents:
-            # Check if it's about lights based on entities
-            for entity in intent.entities.get("devices", []):
-                if entity.raw_text.lower() in {"light", "lights", "lamp", "bulb"}:
-                    return intent.confidence
-            return 0.3  # Low confidence if intent type matches but no light entity
-        else:
-            return 0.0
-            
     async def process_request(self, intent_request: IntentRequest) -> None:
-        """Process a request that exceeded the certainty threshold."""
+        """Process a validated request."""
         client_request = intent_request.client_request
         intent = intent_request.classified_intent
+
+        # Extract and validate entities
+        device_entities = intent.entities.get("devices", [])
+        if not any(d.raw_text.lower() in {"light", "lights", "lamp", "bulb"} for d in device_entities):
+            await self.send_response("This skill only handles light control", client_request)
+            return
 
         # Determine target room(s) from entities
         room_entities = intent.entities.get("rooms", [])
@@ -80,27 +108,24 @@ if __name__ == "__main__":
 
 ## Common Patterns
 
-### 1. Keyword-Based Certainty Calculation
+### 1. Intent Matching with Per-Intent Thresholds
 
-Most skills use simple keyword matching:
+Configure supported intents in `__init__` with specific confidence thresholds for each intent:
 
 ```python
-async def calculate_certainty(self, intent_request: IntentRequest) -> float:
-    intent = intent_request.classified_intent
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
 
-    # Check for media control intents
-    media_intents = {IntentType.MEDIA_PLAY, IntentType.MEDIA_STOP, IntentType.MEDIA_NEXT}
-
-    if intent.intent_type in media_intents:
-        return intent.confidence
-
-    # Fallback to checking entities for media-related content
-    for entity in intent.entities.get("media_id", []):
-        if "music" in entity.raw_text.lower() or "song" in entity.raw_text.lower():
-            return 0.7
-
-    return 0.0
+    # Define supported intents with per-intent confidence thresholds
+    self.supported_intents = {
+        IntentType.MEDIA_PLAY: 0.8,   # Standard threshold
+        IntentType.MEDIA_STOP: 0.7,   # Lower threshold - stopping is safer
+        IntentType.MEDIA_NEXT: 0.8,
+        IntentType.MEDIA_VOLUME_SET: 0.9,  # Higher threshold - more critical
+    }
 ```
+
+**Note**: Entity extraction and validation should be implemented in `process_request()`. All intents that pass the confidence threshold will be sent to `process_request()` for handling.
 
 ### 2. Number Processing
 
@@ -169,28 +194,103 @@ async def process_request(self, intent_request: IntentRequest) -> None:
     await self.send_response(f"Controlled devices in {room_list}", client_request)
 ```
 
-### 5. Database Integration
+### 5. Database Integration (Required)
 
-For skills requiring persistence:
+**All skills require a PostgreSQL database** for the global device registry. The database connection is passed to `BaseSkill.__init__()` via the `engine` parameter.
+
+#### Device Registry
+
+Skills automatically register themselves and their device types during `skill_preparations()`:
 
 ```python
-from private_assistant_commons import PostgresConfig
+from sqlalchemy.ext.asyncio import create_async_engine
+from private_assistant_commons import BaseSkill, PostgresConfig
+
+class TimerSkill(BaseSkill):
+    def __init__(self, *args, **kwargs):
+        # Create database engine
+        db_config = PostgresConfig()  # Loads from environment variables
+        engine = create_async_engine(db_config.connection_string_async)
+
+        # Pass engine to BaseSkill (required)
+        super().__init__(*args, engine=engine, **kwargs)
+
+        # Declare supported device types
+        self.supported_device_types = ["timer", "alarm"]
+
+    async def skill_preparations(self) -> None:
+        # IMPORTANT: Call parent to register skill + device types
+        await super().skill_preparations()
+
+        # Register static devices
+        await self.register_device(
+            device_type="timer",
+            name="timer",
+            pattern=["timer", "set timer", "kitchen timer"]
+        )
+        await self.register_device(
+            device_type="alarm",
+            name="alarm",
+            pattern=["alarm", "set alarm", "wake up alarm"]
+        )
+```
+
+#### Dynamic Devices (External Systems)
+
+For skills that sync devices from external systems:
+
+```python
+class SwitchSkill(BaseSkill):
+    def __init__(self, *args, **kwargs):
+        db_config = PostgresConfig()
+        engine = create_async_engine(db_config.connection_string_async)
+        super().__init__(*args, engine=engine, **kwargs)
+
+        self.supported_device_types = ["light", "switch"]
+        self.ha_client = HomeAssistantClient(...)
+
+    async def skill_preparations(self) -> None:
+        await super().skill_preparations()  # Register skill + device types
+
+        # Sync devices from Home Assistant
+        await self._sync_devices()
+
+        # Schedule periodic refresh (every 5 minutes)
+        self.add_task(self._periodic_device_sync(interval=300))
+
+    async def _sync_devices(self):
+        """Sync devices from Home Assistant to device registry."""
+        ha_devices = await self.ha_client.get_lights()
+
+        for ha_device in ha_devices:
+            await self.register_device(
+                device_type="light",
+                name=ha_device.name,
+                pattern=ha_device.generate_patterns(),
+                room=ha_device.room,
+                device_attributes={"ha_entity_id": ha_device.entity_id}
+            )
+```
+
+#### Additional Persistence
+
+Skills can add their own database tables for additional persistence needs:
+
+```python
 import asyncpg
 
 class SpotifySkill(BaseSkill):
-    def __init__(self, *args, db_config: PostgresConfig, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.db_config = db_config
-        self.db_pool = None
-        
     async def skill_preparations(self) -> None:
-        # Initialize database connection pool
+        await super().skill_preparations()  # Required device registry registration
+
+        # Create additional connection pool for skill-specific tables
+        db_config = PostgresConfig()
         self.db_pool = await asyncpg.create_pool(
-            self.db_config.connection_string_async
+            db_config.connection_string_async
         )
-        
+
     async def _store_token(self, user_id: str, access_token: str):
-        """Store Spotify token for user."""
+        """Store Spotify token in skill-specific table."""
         async with self.db_pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO user_tokens (user_id, token) VALUES ($1, $2) "
@@ -289,31 +389,63 @@ await self.publish_with_alert(
 
 ## Advanced Patterns
 
-### Complex Certainty Calculation
+### Context-Aware Confidence Thresholds
+
+Use confidence modifiers to improve conversation flow by lowering thresholds for related follow-up commands:
 
 ```python
-async def calculate_certainty(self, intent_request: IntentRequest) -> float:
-    intent = intent_request.classified_intent
-    text = intent_request.client_request.text.lower()
-    
-    # Base score from intent type and entities
-    score = 0.0
+from private_assistant_commons import ConfidenceModifier, ConfidenceLevel
 
-    # Check for weather-related queries
-    if intent.intent_type == IntentType.QUERY_STATUS:
-        # Check entities for weather-related content
-        for entity_list in intent.entities.values():
-            for e in entity_list:
-                if any(word in e.raw_text.lower() for word in ["weather", "temperature", "rain"]):
-                    score += 0.7
-                    break
-        
-    # Context phrases
-    weather_phrases = ["what's the weather", "how hot", "will it rain"]
-    if any(phrase in text for phrase in weather_phrases):
-        score += 0.4
-        
-    return min(score, 1.0)  # Cap at 1.0
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    # Configure supported intents
+    self.supported_intents = {
+        IntentType.MEDIA_PLAY: 0.8,
+        IntentType.MEDIA_STOP: 0.8,
+        IntentType.MEDIA_NEXT: 0.8,
+        IntentType.MEDIA_VOLUME_UP: 0.8,
+        IntentType.MEDIA_VOLUME_DOWN: 0.8,
+    }
+
+    # Lower thresholds for follow-up commands in media control context
+    # Key is the intent being impacted, value is list of modifiers
+    self.confidence_modifiers = {
+        IntentType.MEDIA_VOLUME_UP: [
+            # After starting music, accept lower confidence for volume control
+            ConfidenceModifier(
+                trigger_intent=IntentType.MEDIA_PLAY,
+                lowers_threshold_for=IntentType.MEDIA_VOLUME_UP,
+                reduced_threshold=ConfidenceLevel.KEYWORD_ONLY,  # 0.5
+                time_window_seconds=300,
+            ),
+        ],
+        IntentType.MEDIA_VOLUME_DOWN: [
+            ConfidenceModifier(
+                trigger_intent=IntentType.MEDIA_PLAY,
+                lowers_threshold_for=IntentType.MEDIA_VOLUME_DOWN,
+                reduced_threshold=ConfidenceLevel.KEYWORD_ONLY,  # 0.5
+                time_window_seconds=300,
+            ),
+        ],
+        IntentType.MEDIA_STOP: [
+            # After any media command, accept lower confidence for stop
+            ConfidenceModifier(
+                trigger_intent=IntentType.MEDIA_PLAY,
+                lowers_threshold_for=IntentType.MEDIA_STOP,
+                reduced_threshold=0.5,
+                time_window_seconds=600,
+            ),
+        ],
+    }
+
+    # Entity matchers for music-related devices
+    self.entity_matchers = {
+        "devices": lambda devices: any(
+            "spotify" in d.raw_text.lower() or "music" in d.raw_text.lower()
+            for d in devices
+        )
+    }
 ```
 
 ### State Management
