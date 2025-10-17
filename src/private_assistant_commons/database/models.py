@@ -40,7 +40,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import ARRAY, JSON, Column, String
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, select
 
 
 class Room(SQLModel, table=True):
@@ -62,6 +62,20 @@ class Room(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    @classmethod
+    async def get_by_name(cls, session, name: str) -> "Room | None":
+        """Find room by name.
+
+        Args:
+            session: AsyncSession for database operations
+            name: Room name to search for
+
+        Returns:
+            Room instance if found, None otherwise
+        """
+        result = await session.exec(select(cls).where(cls.name == name))
+        return result.first()  # type: ignore[no-any-return]
 
 
 class Skill(SQLModel, table=True):
@@ -85,6 +99,39 @@ class Skill(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
+    @classmethod
+    async def get_by_name(cls, session, name: str) -> "Skill | None":
+        """Find skill by name.
+
+        Args:
+            session: AsyncSession for database operations
+            name: Skill name to search for
+
+        Returns:
+            Skill instance if found, None otherwise
+        """
+        result = await session.exec(select(cls).where(cls.name == name))
+        return result.first()  # type: ignore[no-any-return]
+
+    @classmethod
+    async def ensure_exists(cls, session, name: str) -> "Skill":
+        """Ensure skill exists in database, creating if necessary (idempotent).
+
+        Args:
+            session: AsyncSession for database operations
+            name: Skill name to ensure exists
+
+        Returns:
+            Skill instance (existing or newly created)
+        """
+        skill = await cls.get_by_name(session, name)
+        if skill is None:
+            skill = cls(name=name)
+            session.add(skill)
+            await session.commit()
+            await session.refresh(skill)
+        return skill
+
 
 class DeviceType(SQLModel, table=True):
     """Device type model for categorizing devices.
@@ -105,6 +152,39 @@ class DeviceType(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    @classmethod
+    async def get_by_name(cls, session, name: str) -> "DeviceType | None":
+        """Find device type by name.
+
+        Args:
+            session: AsyncSession for database operations
+            name: Device type name to search for
+
+        Returns:
+            DeviceType instance if found, None otherwise
+        """
+        result = await session.exec(select(cls).where(cls.name == name))
+        return result.first()  # type: ignore[no-any-return]
+
+    @classmethod
+    async def ensure_exists(cls, session, name: str) -> "DeviceType":
+        """Ensure device type exists in database, creating if necessary (idempotent).
+
+        Args:
+            session: AsyncSession for database operations
+            name: Device type name to ensure exists
+
+        Returns:
+            DeviceType instance (existing or newly created)
+        """
+        device_type = await cls.get_by_name(session, name)
+        if device_type is None:
+            device_type = cls(name=name)
+            session.add(device_type)
+            await session.commit()
+            await session.refresh(device_type)
+        return device_type
 
 
 class GlobalDevice(SQLModel, table=True):
