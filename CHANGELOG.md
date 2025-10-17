@@ -4,6 +4,22 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.0.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.4.0...v5.0.0) (2025-10-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* skill_preparations() now auto-registers skill, must call super()
+
+### Documentation
+
+* 📝 update documentation for mandatory database and device registry ([d54fab2](https://github.com/stkr22/private-assistant-commons-py/commit/d54fab2e25982af3476114c33aa8a27649f7ac8e))
+
+
+### Code Refactoring
+
+* ♻️ merge device registry into BaseSkill and add device update listener ([252a0c7](https://github.com/stkr22/private-assistant-commons-py/commit/252a0c7f350166104828da146a83ddf89285cd7a))
+
 ## [4.4.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.3.1...v4.4.0) (2025-10-06)
 
 
