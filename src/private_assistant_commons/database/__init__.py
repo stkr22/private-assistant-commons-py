@@ -1,12 +1,12 @@
 """Database models for the Private Assistant ecosystem."""
 
-from .device_registry import DeviceRegistryMixin
 from .models import DeviceType, GlobalDevice, Room, Skill
+from .postgres_config import PostgresConfig
 
 __all__ = [
-    "DeviceRegistryMixin",
     "DeviceType",
     "GlobalDevice",
+    "PostgresConfig",
     "Room",
     "Skill",
 ]

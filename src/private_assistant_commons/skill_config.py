@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
-from typing import Any, Self, TypeVar
+from typing import Any, TypeVar
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
@@ -11,34 +10,6 @@ from pydantic import BaseModel, Field, ValidationError
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
-
-
-class PostgresConfig(BaseModel):
-    user: str = Field(default="postgres", description="Database user")
-    password: str = Field(default="postgres", description="Database password")
-    host: str = Field(default="localhost", description="Database host")
-    port: int = Field(default=5432, description="Database port")
-    database: str = Field(default="postgres", description="Database name")
-
-    @property
-    def connection_string(self) -> str:
-        return f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
-
-    @property
-    def connection_string_async(self) -> str:
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
-
-    @classmethod
-    def from_env(cls) -> Self:
-        return cls.model_validate(
-            {
-                "user": os.getenv("POSTGRES_USER", "postgres"),
-                "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
-                "host": os.getenv("POSTGRES_HOST", "localhost"),
-                "port": int(os.getenv("POSTGRES_PORT", "5432")),
-                "database": os.getenv("POSTGRES_DB", "postgres"),
-            }
-        )
 
 
 class SkillConfig(BaseModel):
@@ -60,7 +31,7 @@ class SkillConfig(BaseModel):
 
     @property
     def skill_id(self) -> str:
-        """Get skill identifier (alias for client_id for DeviceRegistryMixin compatibility)."""
+        """Get skill identifier (alias for client_id for device registry compatibility)."""
         return self.client_id
 
 

@@ -1,27 +1,12 @@
 """Intent classification data models for the Private Assistant ecosystem."""
 
-from .models import (
-    Alert,
-    ClassifiedIntent,
-    ClientRequest,
-    Entity,
-    EntityType,
-    IntentRequest,
-    IntentType,
-    RecentAction,
-    Response,
-    SkillContext,
-)
+from .models import ClassifiedIntent, ConfidenceLevel, Entity, EntityType, IntentRequest, IntentType
 
 __all__ = [
-    "Alert",
     "ClassifiedIntent",
-    "ClientRequest",
+    "ConfidenceLevel",
     "Entity",
     "EntityType",
     "IntentRequest",
     "IntentType",
-    "RecentAction",
-    "Response",
-    "SkillContext",
 ]

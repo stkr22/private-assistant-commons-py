@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import weakref
 from abc import ABC, abstractmethod
-from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -12,41 +11,20 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import logging
+    from uuid import UUID
 
     from sqlalchemy.ext.asyncio import AsyncEngine
 
 import aiomqtt
 from pydantic import ValidationError
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from private_assistant_commons import intent, skill_config, skill_logger
+from private_assistant_commons.database.models import DeviceType, GlobalDevice, Room, Skill
+from private_assistant_commons.messages import Alert, ClientRequest, Response
 from private_assistant_commons.metrics import MetricsCollector
-
-
-class BoundedDict(OrderedDict):
-    """Thread-safe bounded dictionary with LRU eviction.
-
-    Maintains a maximum number of entries by automatically removing
-    the least recently used items when capacity is exceeded.
-    """
-
-    def __init__(self, max_size: int = 1000):
-        """Initialize bounded dictionary.
-
-        Args:
-            max_size: Maximum number of entries to store
-        """
-        self.max_size = max_size
-        super().__init__()
-
-    def __setitem__(self, key, value):
-        """Add or update an entry, maintaining size limit."""
-        if key in self:
-            # Move existing key to end (most recently used)
-            self.move_to_end(key)
-        elif len(self) >= self.max_size:
-            # Remove least recently used item
-            self.popitem(last=False)
-        super().__setitem__(key, value)
+from private_assistant_commons.skill_context import ConfidenceModifier, SkillContext
 
 
 # AIDEV-NOTE: Core abstract base class for all skills in Private Assistant ecosystem
@@ -86,9 +64,9 @@ class BaseSkill(ABC):
         config_obj: skill_config.SkillConfig,
         mqtt_client: aiomqtt.Client,
         task_group: asyncio.TaskGroup,
+        engine: AsyncEngine,
         certainty_threshold: float = 0.8,
         logger: logging.Logger | None = None,
-        engine: AsyncEngine | None = None,
     ) -> None:
         """Initialize the base skill.
 
@@ -96,20 +74,17 @@ class BaseSkill(ABC):
             config_obj: Configuration for MQTT topics and connection settings
             mqtt_client: Connected MQTT client for message publishing/subscribing
             task_group: TaskGroup for managing concurrent operations
+            engine: Async database engine for device registry operations (required)
             certainty_threshold: Minimum confidence score to process requests (0.0-1.0)
             logger: Optional custom logger, defaults to skill-specific logger
-            engine: Optional async database engine for DeviceRegistryMixin
         """
         self.config_obj: skill_config.SkillConfig = config_obj
         self.certainty_threshold: float = certainty_threshold
-        # AIDEV-NOTE: Bounded LRU cache prevents memory leaks from unbounded growth
-        self.intent_requests: BoundedDict = BoundedDict(max_size=config_obj.intent_cache_size)
-        self._results_lock = asyncio.Lock()  # Thread safety for concurrent access
         self.mqtt_client: aiomqtt.Client = mqtt_client
         self.task_group: asyncio.TaskGroup = task_group
         self.logger = logger or skill_logger.SkillLogger.get_logger(__name__)
-        self.default_alert = intent.Alert(play_before=True)
-        self._engine: AsyncEngine | None = engine
+        self.default_alert = Alert(play_before=True)
+        self.engine: AsyncEngine = engine
 
         # AIDEV-NOTE: Task lifecycle management for monitoring and debugging
         self._active_tasks: dict[int, BaseSkill.TaskInfo] = {}
@@ -117,6 +92,22 @@ class BaseSkill(ABC):
 
         # AIDEV-NOTE: Performance metrics and observability
         self.metrics = MetricsCollector(skill_name=config_obj.client_id)
+
+        # AIDEV-NOTE: Context tracking for intent decision flow
+        self.skill_context = SkillContext(skill_name=config_obj.client_id)
+
+        # AIDEV-NOTE: Intent handling configuration - skills set these in their __init__
+        # Skills should populate these attributes to configure intent handling behavior:
+        # - supported_intents: Map each intent type to its minimum confidence threshold
+        # - confidence_modifiers: Map target intent to list of modifiers that lower its threshold
+        self.supported_intents: dict[intent.IntentType, float] = {}  # intent -> min confidence threshold
+        self.confidence_modifiers: dict[intent.IntentType, list[ConfidenceModifier]] = {}
+
+        # AIDEV-NOTE: Device registry configuration - skills set supported_device_types in their __init__
+        # Skills should populate this list with device type names they support (e.g., ["light", "switch"])
+        self.supported_device_types: list[str] = []
+        self._global_skill_id: UUID | None = None  # Cached skill UUID from database
+        self.global_devices: list = []  # Cache of devices from database, refreshed on updates
 
     def decode_message_payload(self, payload: bytes | bytearray | str | Any) -> str | None:
         """Decode MQTT message payload to string.
@@ -144,15 +135,30 @@ class BaseSkill(ABC):
         await self.mqtt_client.subscribe(topic=self.config_obj.intent_analysis_result_topic, qos=1)
         self.logger.info("Subscribed to intent analysis result topic: %s", self.config_obj.intent_analysis_result_topic)
 
-    @abstractmethod
     async def skill_preparations(self) -> None:
         """Perform skill-specific initialization after MQTT setup.
 
-        Called after MQTT subscriptions are established. Skills should
-        implement any custom setup logic here (e.g., database connections,
-        external API initialization, etc.).
+        Called after MQTT subscriptions are established. Automatically registers
+        the skill and its device types in the database. Skills should override
+        this method to add custom setup logic (e.g., device registration,
+        external API initialization, etc.), but must call super().skill_preparations()
+        first to ensure database registration completes.
+
+        Example:
+            ```python
+            async def skill_preparations(self):
+                await super().skill_preparations()  # Register skill + device types
+
+                # Custom initialization
+                await self.register_device("timer", "timer", ["timer", "set timer"])
+            ```
         """
-        pass
+        # Auto-register skill and device types
+        await self.ensure_skill_registered()
+        await self.ensure_device_types_registered()
+
+        # Start device update listener
+        self.add_task(self._listen_for_device_updates())
 
     # AIDEV-NOTE: Main message processing loop - handles all incoming MQTT messages
     async def listen_to_messages(self, client: aiomqtt.Client) -> None:
@@ -175,23 +181,60 @@ class BaseSkill(ABC):
                     # Each message gets its own task to allow parallel certainty calculation
                     self.add_task(self._handle_message_async(payload_str))
 
-    @abstractmethod
-    async def calculate_certainty(self, intent_request: intent.IntentRequest) -> float:
-        """Calculate confidence score for handling this request.
+    # AIDEV-NOTE: Intent decision flow - centralized logic for determining whether to handle intent
+    def _should_handle_intent(self, intent_request: intent.IntentRequest) -> tuple[bool, float]:
+        """Determine if this skill should handle the intent request.
+
+        This method implements the 2-step intent decision flow:
+        1. Intent Matching: Check if intent type is supported
+        2. Confidence Evaluation: Check if confidence meets threshold (with modifiers)
 
         Args:
             intent_request: Parsed voice command with classified intent and client request
 
         Returns:
-            Confidence score between 0.0-1.0. Values >= certainty_threshold
-            will trigger request processing.
-
-        Implementation varies by skill:
-        - Simple keyword matching (most common)
-        - Complex NLP analysis
-        - Pattern matching on verbs/nouns
+            Tuple of (should_handle, effective_threshold):
+                - should_handle: True if the skill should handle this request, False otherwise
+                - effective_threshold: The confidence threshold used (after applying modifiers)
         """
-        pass
+        classified_intent = intent_request.classified_intent
+
+        # Step 1: Intent Matching - Check if this skill supports the intent type
+        if classified_intent.intent_type not in self.supported_intents:
+            self.logger.debug(
+                "Intent type %s not supported by this skill, skipping", classified_intent.intent_type.value
+            )
+            return False, 0.0
+
+        # Step 2: Confidence Evaluation - Get per-intent threshold and apply modifiers
+        required_confidence = self.supported_intents[classified_intent.intent_type]
+        effective_threshold = required_confidence
+
+        # Check if any recent intents allow for a lower threshold via O(1) dict lookup
+        modifiers_for_intent = self.confidence_modifiers.get(classified_intent.intent_type, [])
+        for modifier in modifiers_for_intent:
+            # Check if the trigger intent was recent
+            recent_action = self.skill_context.find_recent_action(
+                modifier.trigger_intent.value, within_seconds=modifier.time_window_seconds
+            )
+            if recent_action:
+                effective_threshold = min(effective_threshold, modifier.reduced_threshold)
+                self.logger.debug(
+                    "Lowered threshold to %.2f due to recent %s intent",
+                    effective_threshold,
+                    modifier.trigger_intent.value,
+                )
+
+        # Check if confidence meets the effective threshold
+        if classified_intent.confidence < effective_threshold:
+            self.logger.info(
+                "Confidence (%.2f) below effective threshold (%.2f), skipping request.",
+                classified_intent.confidence,
+                effective_threshold,
+            )
+            return False, effective_threshold
+
+        return True, effective_threshold
 
     async def _handle_message_async(self, payload_str: str) -> None:
         """Handle message processing in separate task for concurrency.
@@ -207,18 +250,19 @@ class BaseSkill(ABC):
         except Exception as e:
             self.logger.error("Error processing message: %s", e, exc_info=True)
 
-    # AIDEV-NOTE: Core request processing pipeline - certainty evaluation and routing
+    # AIDEV-NOTE: Core request processing pipeline - delegates decision to _should_handle_intent
     async def handle_client_request_message(self, payload: str) -> None:
         """Process incoming intent analysis result and decide whether to handle it.
 
         Args:
-            payload: JSON string containing IntentAnalysisResult
+            payload: JSON string containing IntentRequest
 
         Flow:
         1. Parse and validate the intent analysis result
         2. Store for potential delayed processing
-        3. Calculate skill-specific certainty score
-        4. Process request if certainty >= threshold
+        3. Call _should_handle_intent() for 2-step decision process (intent + confidence)
+        4. Process request if checks pass (entity validation happens in process_request)
+        5. Track processed intent in context for future threshold adjustments
         """
         # Start timing for performance metrics
         timer_id = self.metrics.start_timer("message_processing")
@@ -226,31 +270,32 @@ class BaseSkill(ABC):
         try:
             # Parse and validate the incoming JSON message
             intent_request = intent.IntentRequest.model_validate_json(payload)
+            classified_intent = intent_request.classified_intent
 
-            # Store result in bounded cache with thread-safe access
-            # This cache is legacy from coordinator-based architecture but still used for debugging
-            async with self._results_lock:
-                cache_had_key = intent_request.id in self.intent_requests
-                self.intent_requests[intent_request.id] = intent_request
+            # Execute the 3-step intent decision flow
+            should_handle, effective_threshold = self._should_handle_intent(intent_request)
 
-                # Record cache metrics
-                self.metrics.record_cache_event(
-                    "hit" if cache_had_key else "miss", cache_size=len(self.intent_requests)
-                )
+            if not should_handle:
+                # Decision logged within _should_handle_intent
+                self.metrics.record_message_processed(success=True, certainty=classified_intent.confidence)
+                return
 
-            # Calculate skill-specific confidence score (implemented by each skill)
-            certainty = await self.calculate_certainty(intent_request)
-            self.logger.debug("Calculated certainty for intent: %.2f", certainty)
+            # All checks passed - process the request
+            self.logger.info(
+                "Processing intent %s with confidence %.2f (threshold: %.2f)",
+                classified_intent.intent_type.value,
+                classified_intent.confidence,
+                effective_threshold,
+            )
 
-            # Distributed decision: each skill independently decides whether to handle the request
-            if certainty >= self.certainty_threshold:
-                await self.process_request(intent_request)
-                self.metrics.record_message_processed(success=True, certainty=certainty)
-            else:
-                self.logger.info(
-                    "Certainty (%.2f) below threshold (%.2f), skipping request.", certainty, self.certainty_threshold
-                )
-                self.metrics.record_message_processed(success=True, certainty=certainty)
+            await self.process_request(intent_request)
+            self.metrics.record_message_processed(success=True, certainty=classified_intent.confidence)
+
+            # Track this intent in context for future threshold adjustments
+            self.skill_context.add_action(
+                classified_intent.intent_type.value,
+                entities={k: [e.normalized_value for e in v] for k, v in classified_intent.entities.items()},
+            )
 
         except ValidationError as e:
             self.logger.error("Error validating client request message: %s", e)
@@ -282,8 +327,8 @@ class BaseSkill(ABC):
     async def send_response(
         self,
         response_text: str,
-        client_request: intent.ClientRequest,
-        alert: intent.Alert | None = None,
+        client_request: ClientRequest,
+        alert: Alert | None = None,
     ) -> bool:
         """Send a response to a specific client request with retry logic.
 
@@ -305,7 +350,7 @@ class BaseSkill(ABC):
     async def broadcast_response(
         self,
         response_text: str,
-        alert: intent.Alert | None = None,
+        alert: Alert | None = None,
     ) -> bool:
         """Broadcast a response to all connected clients with retry logic.
 
@@ -330,9 +375,9 @@ class BaseSkill(ABC):
     async def publish_with_alert(
         self,
         response_text: str,
-        client_request: intent.ClientRequest | None = None,
+        client_request: ClientRequest | None = None,
         broadcast: bool = False,
-        alert: intent.Alert | None = None,
+        alert: Alert | None = None,
     ) -> None:
         """Publish a message with flexible routing and alert options.
 
@@ -362,7 +407,7 @@ class BaseSkill(ABC):
         self,
         response_text: str,
         topic: str,
-        alert: intent.Alert | None = None,
+        alert: Alert | None = None,
         operation: str = "mqtt_publish",
         max_retries: int = 3,
     ) -> bool:
@@ -378,7 +423,7 @@ class BaseSkill(ABC):
         Returns:
             bool: True if response was successfully published, False otherwise
         """
-        response = intent.Response(text=response_text, alert=alert)
+        response = Response(text=response_text, alert=alert)
         last_error_type = None
 
         # Start timing for MQTT operation metrics
@@ -578,22 +623,192 @@ class BaseSkill(ABC):
         }
 
     @property
-    def engine(self) -> AsyncEngine:
-        """Get the database engine for device registry operations.
+    async def global_skill_id(self) -> UUID:
+        """Get the skill's UUID from the database (cached).
+
+        Lazily loads the skill UUID on first access and caches it for subsequent calls.
+        This property ensures the skill is registered in the database.
 
         Returns:
-            AsyncEngine: SQLAlchemy async engine
+            UUID of the skill in the database
 
         Raises:
-            RuntimeError: If engine was not configured during initialization
-
-        Note:
-            Skills using DeviceRegistryMixin must pass engine parameter to BaseSkill.__init__()
+            RuntimeError: If skill registration fails
         """
-        if self._engine is None:
-            msg = (
-                "Database engine not configured. "
-                "Set engine parameter in BaseSkill.__init__() to use DeviceRegistryMixin"
+        if self._global_skill_id is None:
+            await self.ensure_skill_registered()
+        return self._global_skill_id  # type: ignore[return-value]
+
+    # AIDEV-NOTE: Device Registry Methods - All skills participate in global device registry
+    async def ensure_skill_registered(self) -> None:
+        """Ensure this skill is registered in the database (idempotent).
+
+        Registers the skill if it doesn't exist and caches its UUID for subsequent operations.
+        This method is called automatically during skill_preparations().
+
+        Raises:
+            RuntimeError: If database operation fails
+        """
+        try:
+            async with AsyncSession(self.engine) as session:
+                skill = await Skill.ensure_exists(session, self.config_obj.skill_id)
+                self._global_skill_id = skill.id
+                self.logger.info("Skill registered in database: %s (UUID: %s)", skill.name, skill.id)
+        except Exception as e:
+            self.logger.error("Failed to register skill: %s", e, exc_info=True)
+            raise RuntimeError(f"Skill registration failed: {e}") from e
+
+    async def ensure_device_types_registered(self) -> None:
+        """Ensure all device types in supported_device_types are registered (idempotent).
+
+        Registers any missing device types in the database. This method is called
+        automatically during skill_preparations().
+
+        Raises:
+            RuntimeError: If database operation fails
+        """
+        if not self.supported_device_types:
+            self.logger.debug("No device types to register")
+            return
+
+        try:
+            async with AsyncSession(self.engine) as session:
+                for device_type_name in self.supported_device_types:
+                    device_type = await DeviceType.ensure_exists(session, device_type_name)
+                    self.logger.info("Device type registered: %s (UUID: %s)", device_type.name, device_type.id)
+        except Exception as e:
+            self.logger.error("Failed to register device types: %s", e, exc_info=True)
+            raise RuntimeError(f"Device type registration failed: {e}") from e
+
+    async def register_device(
+        self,
+        device_type: str,
+        name: str,
+        pattern: list[str],
+        room: str | None = None,
+        device_attributes: dict[str, Any] | None = None,
+    ) -> UUID:
+        """Register a new device in the global device registry.
+
+        Args:
+            device_type: Device type name (must be in supported_device_types)
+            name: Human-readable device name
+            pattern: List of pattern strings for natural language matching
+            room: Optional room name where device is located
+            device_attributes: Optional skill-specific metadata (MQTT paths, templates, etc.)
+
+        Returns:
+            UUID of the created device
+
+        Raises:
+            ValueError: If device_type not in supported_device_types
+            RuntimeError: If database operation fails
+        """
+        if device_type not in self.supported_device_types:
+            raise ValueError(
+                f"Device type '{device_type}' not in supported_device_types: {self.supported_device_types}"
             )
-            raise RuntimeError(msg)
-        return self._engine
+
+        try:
+            async with AsyncSession(self.engine) as session:
+                # Get device type UUID
+                device_type_obj = await DeviceType.get_by_name(session, device_type)
+                if device_type_obj is None:
+                    raise RuntimeError(f"Device type '{device_type}' not found in database")
+
+                # Get room UUID if specified
+                room_id = None
+                if room:
+                    room_obj = await Room.get_by_name(session, room)
+                    if room_obj:
+                        room_id = room_obj.id
+                    else:
+                        self.logger.warning("Room '%s' not found, device will have no room", room)
+
+                # Create device
+                device = GlobalDevice(
+                    device_type_id=device_type_obj.id,
+                    name=name,
+                    pattern=pattern,
+                    room_id=room_id,
+                    skill_id=await self.global_skill_id,
+                    device_attributes=device_attributes,
+                )
+                session.add(device)
+                await session.commit()
+                await session.refresh(device)
+
+                self.logger.info("Device registered: %s (UUID: %s)", name, device.id)
+
+                # Notify intent engine
+                await self.publish_device_update()
+
+                # Refresh local device cache
+                self.global_devices = await self.get_skill_devices()
+
+                return device.id
+
+        except Exception as e:
+            self.logger.error("Failed to register device '%s': %s", name, e, exc_info=True)
+            raise RuntimeError(f"Device registration failed: {e}") from e
+
+    async def _listen_for_device_updates(self) -> None:
+        """Listen for device update notifications and refresh device cache.
+
+        This method runs as a background task and listens to the global_device_update
+        MQTT topic. When an update notification is received, it triggers a device cache
+        refresh by calling get_skill_devices().
+
+        This allows external systems to notify skills when devices have been modified,
+        enabling skills to react to changes without actively polling the database.
+        """
+        self.logger.info("Starting device update listener on topic: %s", self.config_obj.device_update_topic)
+
+        try:
+            await self.mqtt_client.subscribe(self.config_obj.device_update_topic)
+
+            async for message in self.mqtt_client.messages:
+                if message.topic.matches(self.config_obj.device_update_topic):
+                    self.logger.debug("Received device update notification, refreshing device cache")
+                    # Trigger cache refresh and update stored devices
+                    self.global_devices = await self.get_skill_devices()
+                    self.logger.info("Device cache refreshed: %d devices loaded", len(self.global_devices))
+
+        except asyncio.CancelledError:
+            self.logger.info("Device update listener cancelled")
+            raise
+        except Exception as e:
+            self.logger.error("Error in device update listener: %s", e, exc_info=True)
+
+    async def get_skill_devices(self) -> list:
+        """Get all devices belonging to this skill.
+
+        Returns:
+            List of GlobalDevice instances for this skill, or empty list on error
+        """
+        try:
+            async with AsyncSession(self.engine) as session:
+                result = await session.exec(
+                    select(GlobalDevice).where(GlobalDevice.skill_id == await self.global_skill_id)
+                )
+                return list(result.all())
+
+        except Exception as e:
+            self.logger.error("Failed to get skill devices: %s", e, exc_info=True)
+            return []
+
+    async def publish_device_update(self) -> None:
+        """Publish device update notification to MQTT.
+
+        Notifies the intent engine to refresh its device cache when devices
+        are added, updated, or removed. Publishes to the device_update_topic
+        configured in SkillConfig.
+        """
+        try:
+            await self.mqtt_client.publish(
+                self.config_obj.device_update_topic,
+                payload=b"",  # Empty payload, intent engine just needs the signal
+            )
+            self.logger.debug("Published device update notification")
+        except Exception as e:
+            self.logger.error("Failed to publish device update notification: %s", e, exc_info=True)
