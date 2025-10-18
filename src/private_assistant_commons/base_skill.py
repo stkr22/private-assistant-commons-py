@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 import aiomqtt
 from pydantic import ValidationError
+from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -781,16 +782,28 @@ class BaseSkill(ABC):
             self.logger.error("Error in device update listener: %s", e, exc_info=True)
 
     async def get_skill_devices(self) -> list:
-        """Get all devices belonging to this skill.
+        """Get all devices belonging to this skill with relationships eagerly loaded.
+
+        By default, eagerly loads room, device_type, and skill relationships to prevent
+        detached instance errors when accessing them after the session closes.
+
+        Skills can override this method to customize loading behavior if needed.
 
         Returns:
-            List of GlobalDevice instances for this skill, or empty list on error
+            List of GlobalDevice instances with relationships loaded, or empty list on error
         """
         try:
             async with AsyncSession(self.engine) as session:
-                result = await session.exec(
-                    select(GlobalDevice).where(GlobalDevice.skill_id == await self.global_skill_id)
+                statement = (
+                    select(GlobalDevice)
+                    .where(GlobalDevice.skill_id == await self.global_skill_id)
+                    .options(
+                        selectinload(GlobalDevice.room),  # type: ignore[arg-type]
+                        selectinload(GlobalDevice.device_type),  # type: ignore[arg-type]
+                        selectinload(GlobalDevice.skill),  # type: ignore[arg-type]
+                    )
                 )
+                result = await session.exec(statement)
                 return list(result.all())
 
         except Exception as e:
