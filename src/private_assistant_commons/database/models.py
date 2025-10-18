@@ -40,7 +40,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import ARRAY, JSON, Column, String
-from sqlmodel import Field, SQLModel, select
+from sqlmodel import Field, Relationship, SQLModel, select
 
 
 class Room(SQLModel, table=True):
@@ -62,6 +62,9 @@ class Room(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # Relationships
+    devices: list["GlobalDevice"] = Relationship(back_populates="room")
 
     @classmethod
     async def get_by_name(cls, session, name: str) -> "Room | None":
@@ -98,6 +101,9 @@ class Skill(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # Relationships
+    devices: list["GlobalDevice"] = Relationship(back_populates="skill")
 
     @classmethod
     async def get_by_name(cls, session, name: str) -> "Skill | None":
@@ -152,6 +158,9 @@ class DeviceType(SQLModel, table=True):
     name: str = Field(unique=True, index=True)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # Relationships
+    devices: list["GlobalDevice"] = Relationship(back_populates="device_type")
 
     @classmethod
     async def get_by_name(cls, session, name: str) -> "DeviceType | None":
@@ -236,3 +245,8 @@ class GlobalDevice(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    # Relationships
+    device_type: "DeviceType" = Relationship(back_populates="devices")
+    room: "Room | None" = Relationship(back_populates="devices")
+    skill: "Skill" = Relationship(back_populates="devices")
