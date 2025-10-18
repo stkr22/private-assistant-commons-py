@@ -4,6 +4,13 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.2.1](https://github.com/stkr22/private-assistant-commons-py/compare/v5.2.0...v5.2.1) (2025-10-18)
+
+
+### Bug Fixes
+
+* update relationship type hints in GlobalDevice model ([dbdc54a](https://github.com/stkr22/private-assistant-commons-py/commit/dbdc54aa3276fb4abb23cc80404157dc8c17e355))
+
 ## [5.2.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.1.0...v5.2.0) (2025-10-18)
 
 
