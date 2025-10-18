@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.2.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.1.0...v5.2.0) (2025-10-18)
+
+
+### Features
+
+* :sparkles: add eager loading to get_skill_devices() ([d975de3](https://github.com/stkr22/private-assistant-commons-py/commit/d975de309a753d1358367d9c5a14a47486a9a66b))
+* :sparkles: add eager loading to get_skill_devices() ([f64588d](https://github.com/stkr22/private-assistant-commons-py/commit/f64588dc4fdec325960f0e118295ab29f6054b30))
+
 ## [5.1.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.0.0...v5.1.0) (2025-10-18)
 
 
