@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.1.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.0.0...v5.1.0) (2025-10-18)
+
+
+### Features
+
+* :sparkles: add SQLModel Relationship fields to database models ([75eb892](https://github.com/stkr22/private-assistant-commons-py/commit/75eb8929c0b51780a2a4ce27123b4ad89f003747))
+* :sparkles: add SQLModel Relationship fields to database models ([22ee08e](https://github.com/stkr22/private-assistant-commons-py/commit/22ee08ece4ca643c7958123499f818a30b298a44))
+
 ## [5.0.0](https://github.com/stkr22/private-assistant-commons-py/compare/v4.4.0...v5.0.0) (2025-10-17)
 
 
