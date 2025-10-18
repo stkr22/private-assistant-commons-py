@@ -247,6 +247,6 @@ class GlobalDevice(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now)
 
     # Relationships
-    device_type: "DeviceType" = Relationship(back_populates="devices")
-    room: "Room | None" = Relationship(back_populates="devices")
-    skill: "Skill" = Relationship(back_populates="devices")
+    device_type: DeviceType = Relationship(back_populates="devices")
+    room: Room = Relationship(back_populates="devices")
+    skill: Skill = Relationship(back_populates="devices")
