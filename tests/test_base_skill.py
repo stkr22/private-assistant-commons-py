@@ -108,6 +108,57 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
                 await called_coro
                 mock_handle_client_request.assert_called_once_with('{"id": "12345678-1234-5678-1234-567812345678"}')
 
+    async def test_listen_to_messages_device_update(self):
+        """Test that device update messages are routed to _handle_device_update."""
+        # Set up device_update_topic on mock config
+        self.mock_config.device_update_topic = "test/device_update"
+
+        # Create a mock message that matches the device update topic
+        mock_message = Mock()
+        mock_message.topic.matches.side_effect = lambda topic: topic == "test/device_update"
+        mock_message.payload = b""
+
+        # Create an async iterable mock for client.messages
+        async def async_generator():
+            yield mock_message
+
+        mock_mqtt_client = Mock()
+        mock_mqtt_client.messages = async_generator()
+
+        # Mock the add_task method to capture the spawned task
+        with patch.object(self.skill, "add_task") as mock_add_task:
+            await self.skill.listen_to_messages(mock_mqtt_client)
+
+            # Verify that add_task was called once for device update
+            mock_add_task.assert_called_once()
+
+            # Get the coroutine that was passed to add_task
+            called_coro = mock_add_task.call_args[0][0]
+
+            # Execute the coroutine and verify it calls get_skill_devices
+            with patch.object(self.skill, "get_skill_devices", new_callable=AsyncMock) as mock_get_devices:
+                mock_get_devices.return_value = []
+                await called_coro
+                # Verify that get_skill_devices was called to refresh the cache
+                mock_get_devices.assert_called_once()
+
+    async def test_handle_device_update(self):
+        """Test that _handle_device_update refreshes the device cache."""
+        # Mock get_skill_devices to return a list of devices
+        mock_devices = [Mock(), Mock(), Mock()]
+
+        with patch.object(self.skill, "get_skill_devices", new_callable=AsyncMock) as mock_get_devices:
+            mock_get_devices.return_value = mock_devices
+
+            # Call the handler
+            await self.skill._handle_device_update()
+
+            # Verify that get_skill_devices was called
+            mock_get_devices.assert_called_once()
+
+            # Verify that global_devices was updated
+            self.assertEqual(self.skill.global_devices, mock_devices)
+
     async def test_add_text_to_output_topic_with_alert(self):
         mock_request = Mock(spec=ClientRequest)
         mock_request.output_topic = "test/output"
