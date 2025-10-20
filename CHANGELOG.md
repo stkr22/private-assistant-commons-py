@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.2.2](https://github.com/stkr22/private-assistant-commons-py/compare/v5.2.1...v5.2.2) (2025-10-20)
+
+
+### Bug Fixes
+
+* :bug: eliminate competing MQTT message loops [AI] ([905733a](https://github.com/stkr22/private-assistant-commons-py/commit/905733ab87c7d1ca15805ce218b281d9043dcdae))
+* :bug: eliminate competing MQTT message loops [AI] ([124a136](https://github.com/stkr22/private-assistant-commons-py/commit/124a1363918a76d8be4349cca3cd29869b110bc9)), closes [#93](https://github.com/stkr22/private-assistant-commons-py/issues/93)
+
 ## [5.2.1](https://github.com/stkr22/private-assistant-commons-py/compare/v5.2.0...v5.2.1) (2025-10-18)
 
 
