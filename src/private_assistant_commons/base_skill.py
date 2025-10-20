@@ -131,19 +131,25 @@ class BaseSkill(ABC):
         """Set up MQTT topic subscriptions for the skill.
 
         Subscribes to the intent analysis result topic to receive processed
-        voice commands for evaluation and potential handling.
+        voice commands for evaluation and potential handling. Also subscribes
+        to the device update topic to receive notifications when devices are
+        added, modified, or removed.
         """
         await self.mqtt_client.subscribe(topic=self.config_obj.intent_analysis_result_topic, qos=1)
         self.logger.info("Subscribed to intent analysis result topic: %s", self.config_obj.intent_analysis_result_topic)
+
+        await self.mqtt_client.subscribe(topic=self.config_obj.device_update_topic, qos=1)
+        self.logger.info("Subscribed to device update topic: %s", self.config_obj.device_update_topic)
 
     async def skill_preparations(self) -> None:
         """Perform skill-specific initialization after MQTT setup.
 
         Called after MQTT subscriptions are established. Automatically registers
-        the skill and its device types in the database. Skills should override
-        this method to add custom setup logic (e.g., device registration,
-        external API initialization, etc.), but must call super().skill_preparations()
-        first to ensure database registration completes.
+        the skill and its device types in the database, then loads the initial
+        device cache. Skills should override this method to add custom setup
+        logic (e.g., device registration, external API initialization, etc.),
+        but must call super().skill_preparations() first to ensure database
+        registration completes.
 
         Example:
             ```python
@@ -158,8 +164,9 @@ class BaseSkill(ABC):
         await self.ensure_skill_registered()
         await self.ensure_device_types_registered()
 
-        # Start device update listener
-        self.add_task(self._listen_for_device_updates())
+        # Load initial device cache on startup
+        self.global_devices = await self.get_skill_devices()
+        self.logger.info("Initial device cache loaded: %d devices", len(self.global_devices))
 
     # AIDEV-NOTE: Main message processing loop - handles all incoming MQTT messages
     async def listen_to_messages(self, client: aiomqtt.Client) -> None:
@@ -181,6 +188,11 @@ class BaseSkill(ABC):
                     # Process messages concurrently to improve throughput and prevent blocking
                     # Each message gets its own task to allow parallel certainty calculation
                     self.add_task(self._handle_message_async(payload_str))
+
+            # Handle device update notifications
+            elif message.topic.matches(self.config_obj.device_update_topic):
+                # Process device updates concurrently to avoid blocking the main loop
+                self.add_task(self._handle_device_update())
 
     # AIDEV-NOTE: Intent decision flow - centralized logic for determining whether to handle intent
     def _should_handle_intent(self, intent_request: intent.IntentRequest) -> tuple[bool, float]:
@@ -753,33 +765,22 @@ class BaseSkill(ABC):
             self.logger.error("Failed to register device '%s': %s", name, e, exc_info=True)
             raise RuntimeError(f"Device registration failed: {e}") from e
 
-    async def _listen_for_device_updates(self) -> None:
-        """Listen for device update notifications and refresh device cache.
+    async def _handle_device_update(self) -> None:
+        """Handle device update notification by refreshing device cache.
 
-        This method runs as a background task and listens to the global_device_update
-        MQTT topic. When an update notification is received, it triggers a device cache
-        refresh by calling get_skill_devices().
+        This method is called when a device update message is received on the
+        device_update_topic. It refreshes the device cache by calling get_skill_devices().
 
         This allows external systems to notify skills when devices have been modified,
         enabling skills to react to changes without actively polling the database.
         """
-        self.logger.info("Starting device update listener on topic: %s", self.config_obj.device_update_topic)
-
         try:
-            await self.mqtt_client.subscribe(self.config_obj.device_update_topic)
-
-            async for message in self.mqtt_client.messages:
-                if message.topic.matches(self.config_obj.device_update_topic):
-                    self.logger.debug("Received device update notification, refreshing device cache")
-                    # Trigger cache refresh and update stored devices
-                    self.global_devices = await self.get_skill_devices()
-                    self.logger.info("Device cache refreshed: %d devices loaded", len(self.global_devices))
-
-        except asyncio.CancelledError:
-            self.logger.info("Device update listener cancelled")
-            raise
+            self.logger.debug("Received device update notification, refreshing device cache")
+            # Trigger cache refresh and update stored devices
+            self.global_devices = await self.get_skill_devices()
+            self.logger.info("Device cache refreshed: %d devices loaded", len(self.global_devices))
         except Exception as e:
-            self.logger.error("Error in device update listener: %s", e, exc_info=True)
+            self.logger.error("Error handling device update: %s", e, exc_info=True)
 
     async def get_skill_devices(self) -> list:
         """Get all devices belonging to this skill with relationships eagerly loaded.
