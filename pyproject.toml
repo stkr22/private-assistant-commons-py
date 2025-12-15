@@ -52,7 +52,7 @@ dev = [
     "pytest-xdist~=3.6.0",
     "coverage[toml]~=7.6.0",
     "commitizen~=4.8.3",
-    "aiosqlite~=0.21.0",
+    "aiosqlite~=0.22.0",
 ]
 
 [tool.ruff]
