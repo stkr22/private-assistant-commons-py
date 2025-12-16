@@ -1,5 +1,5 @@
 [build-system]
-requires = ["uv_build>=0.8.11,<0.9.0"]
+requires = ["uv_build>=0.9.17,<0.10.0"]
 build-backend = "uv_build"
 
 [project]
@@ -8,7 +8,7 @@ version = "5.2.2"
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
 authors = [{ name = "stkr22", email = "stkr22@github.com" }]
 readme = "README.md"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 license-files = [
     "LICENSE",
 ]
@@ -43,15 +43,14 @@ Changelog = "https://github.com/stkr22/private-assistant-commons-py/blob/main/CH
 
 [dependency-groups]
 dev = [
-    "ruff~=0.12.4",
+    "ruff~=0.14.1",
     "mypy~=1.17.0",
     "pytest~=8.4.1",
-    "pytest-asyncio~=0.24.0",
     "pytest-cov~=6.2.1",
-    "types-pyyaml~=6.0.12.20240724",
     "pytest-xdist~=3.6.0",
     "coverage[toml]~=7.6.0",
-    "commitizen~=4.8.3",
+    "pytest-asyncio~=0.25.2",
+    "types-pyyaml~=6.0.12.20240724",
     "aiosqlite~=0.22.0",
 ]
 
@@ -103,10 +102,3 @@ exclude_lines = [
     "def __repr__",
     "if __name__ == .__main__.:",
 ]
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-tag_format = "v$version"
-version_scheme = "pep440"
-version_provider = "scm"
-update_changelog_on_bump = true
