@@ -4,6 +4,20 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.3.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.2.2...v5.3.0) (2025-12-18)
+
+
+### Features
+
+* :sparkles: add create_skill_engine helper for resilient DB connections [AI] ([cd2b90c](https://github.com/stkr22/private-assistant-commons-py/commit/cd2b90cf903445e9accf2ddeaa1bd7f8d325a33b))
+* :sparkles: add create_skill_engine helper for resilient DB connections [AI] ([20c2595](https://github.com/stkr22/private-assistant-commons-py/commit/20c2595c873d8174cf1c7330f454f999f3e69173))
+
+
+### Bug Fixes
+
+* **deps:** update dependency asyncpg to ~=0.31.0 ([254901d](https://github.com/stkr22/private-assistant-commons-py/commit/254901dc6d57f3e09a3d2b0a552194b65799c7b2))
+* **deps:** update dependency asyncpg to ~=0.31.0 ([b7737c7](https://github.com/stkr22/private-assistant-commons-py/commit/b7737c70b842f5048c205003485b87eff98601be))
+
 ## [5.2.2](https://github.com/stkr22/private-assistant-commons-py/compare/v5.2.1...v5.2.2) (2025-10-20)
 
 
