@@ -1,7 +1,7 @@
 """Database models for the Private Assistant ecosystem."""
 
 from .models import DeviceType, GlobalDevice, Room, Skill
-from .postgres_config import PostgresConfig
+from .postgres_config import PostgresConfig, create_skill_engine
 
 __all__ = [
     "DeviceType",
@@ -9,4 +9,5 @@ __all__ = [
     "PostgresConfig",
     "Room",
     "Skill",
+    "create_skill_engine",
 ]
