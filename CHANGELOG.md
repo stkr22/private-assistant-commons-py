@@ -4,6 +4,20 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.4.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.3.0...v5.4.0) (2026-01-01)
+
+
+### Features
+
+* :sparkles: streamline config with MqttConfig and PostgresDsn [AI] ([aa86b57](https://github.com/stkr22/private-assistant-commons-py/commit/aa86b5789c70bd01ae399705ccd449e01dcf974b))
+* :sparkles: streamline config with MqttConfig and PostgresDsn [AI] ([3892b83](https://github.com/stkr22/private-assistant-commons-py/commit/3892b830e2f0d9ae61f62c9b1810376699636a69))
+
+
+### Bug Fixes
+
+* **deps:** update dependency rich to v14 ([67a6eae](https://github.com/stkr22/private-assistant-commons-py/commit/67a6eae40fb8797b38150ab16cf9a0c9faede2dd))
+* **deps:** update dependency rich to v14 ([3a2c774](https://github.com/stkr22/private-assistant-commons-py/commit/3a2c774eda89b6acaac033c8d7aafd29fe70d88c))
+
 ## [5.3.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.2.2...v5.3.0) (2025-12-18)
 
 
