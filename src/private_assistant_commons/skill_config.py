@@ -6,19 +6,36 @@ from typing import Any, TypeVar
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T", bound=BaseModel)
 
 
-class SkillConfig(BaseModel):
-    mqtt_server_host: str = "localhost"
-    mqtt_server_port: int = 1883
+class MqttConfig(BaseSettings):
+    """Configuration for MQTT broker connection.
+
+    Loads from environment variables with MQTT_ prefix:
+    - MQTT_HOST (required): MQTT broker hostname
+    - MQTT_PORT (required): MQTT broker port
+    - MQTT_USERNAME (optional): Username for authentication
+    - MQTT_PASSWORD (optional): Password for authentication
+    """
+
+    model_config = SettingsConfigDict(env_prefix="MQTT_")
+
+    host: str = Field(description="MQTT broker host")
+    port: int = Field(description="MQTT broker port")
+    username: str | None = Field(default=None, description="MQTT username for authentication")
+    password: str | None = Field(default=None, description="MQTT password for authentication")
+
+
+class SkillConfig(BaseSettings):
     client_id: str = "default_skill"
     base_topic: str = "assistant"
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
-    broadcast_topic: str = "assistant/comms_bridge/broadcast"
+    broadcast_topic: str = "assistant/broadcast"
     intent_cache_size: int = Field(default=1000, description="Maximum number of intent analysis results to cache")
     device_update_topic: str = Field(
         default="assistant/global_device_update",

@@ -1,6 +1,8 @@
 """PostgreSQL database configuration."""
 
-from pydantic import AliasChoices, Field
+from urllib.parse import quote_plus
+
+from pydantic import AliasChoices, Field, PostgresDsn, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -35,15 +37,31 @@ class PostgresConfig(BaseSettings):
         validation_alias=AliasChoices("database", "POSTGRES_DB"),
     )
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def connection_string(self) -> str:
+    def connection_string(self) -> PostgresDsn:
         """Get synchronous connection string for psycopg."""
-        return f"postgresql+psycopg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return PostgresDsn.build(
+            scheme="postgresql+psycopg",
+            username=self.user,
+            password=quote_plus(self.password),
+            host=self.host,
+            port=self.port,
+            path=self.database,
+        )
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def connection_string_async(self) -> str:
+    def connection_string_async(self) -> PostgresDsn:
         """Get asynchronous connection string for asyncpg."""
-        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        return PostgresDsn.build(
+            scheme="postgresql+asyncpg",
+            username=self.user,
+            password=quote_plus(self.password),
+            host=self.host,
+            port=self.port,
+            path=self.database,
+        )
 
 
 def create_skill_engine(  # noqa: PLR0913
@@ -100,7 +118,7 @@ def create_skill_engine(  # noqa: PLR0913
         connect_args = {"command_timeout": 60}
 
     return create_async_engine(
-        config.connection_string_async,
+        str(config.connection_string_async),
         pool_pre_ping=pool_pre_ping,
         pool_recycle=pool_recycle,
         pool_size=pool_size,

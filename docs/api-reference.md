@@ -329,24 +329,38 @@ class Response(BaseModel):
 
 ## Configuration Classes
 
+### MqttConfig
+
+MQTT broker connection configuration. Loads from environment variables with `MQTT_` prefix.
+
+```python
+class MqttConfig(BaseSettings):
+    host: str  # Required - MQTT broker hostname
+    port: int  # Required - MQTT broker port
+    username: str | None = None  # Optional - Authentication username
+    password: str | None = None  # Optional - Authentication password
+```
+
+**Environment Variables:**
+- **MQTT_HOST** (required): MQTT broker hostname
+- **MQTT_PORT** (required): MQTT broker port
+- **MQTT_USERNAME** (optional): Authentication username
+- **MQTT_PASSWORD** (optional): Authentication password
+
 ### SkillConfig
 
 Core configuration for Private Assistant skills.
 
 ```python
-class SkillConfig(BaseModel):
-    mqtt_server_host: str = "localhost"
-    mqtt_server_port: int = 1883
+class SkillConfig(BaseSettings):
     client_id: str = "default_skill"
     base_topic: str = "assistant"
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
-    broadcast_topic: str = "assistant/comms_bridge/broadcast"
+    broadcast_topic: str = "assistant/broadcast"
     intent_cache_size: int = 1000
 ```
 
 **Attributes:**
-- **mqtt_server_host**: MQTT broker hostname
-- **mqtt_server_port**: MQTT broker port
 - **client_id**: Unique identifier for this skill
 - **base_topic**: Base MQTT topic prefix
 - **intent_analysis_result_topic**: Topic for receiving intent analysis results
@@ -390,6 +404,7 @@ Main entry point for skill lifecycle management.
 async def mqtt_connection_handler(
     skill_class,
     skill_config: SkillConfig,
+    mqtt_config: MqttConfig,
     retry_interval: int = 5,
     logger: logging.Logger | None = None,
     **kwargs,
@@ -398,7 +413,8 @@ async def mqtt_connection_handler(
 
 **Parameters:**
 - **skill_class**: Class that inherits from BaseSkill
-- **skill_config**: MQTT and topic configuration
+- **skill_config**: Topic and skill configuration
+- **mqtt_config**: MQTT broker connection settings (host, port, credentials)
 - **retry_interval**: Seconds between reconnection attempts
 - **logger**: Optional custom logger
 - **kwargs**: Additional arguments passed to skill constructor
@@ -522,14 +538,12 @@ All public APIs are fully type-hinted for better IDE support and static analysis
 ### Default Values
 - **certainty_threshold**: 0.8
 - **retry_interval**: 5 seconds
-- **mqtt_server_host**: "localhost"
-- **mqtt_server_port**: 1883
 - **base_topic**: "assistant"
 - **log_level**: "INFO" (from LOG_LEVEL env var)
 
 ### Topic Patterns
 - **Intent results**: `{base_topic}/intent_engine/result`
-- **Broadcast**: `{base_topic}/comms_bridge/broadcast`
+- **Broadcast**: `{base_topic}/broadcast`
 - **Skill feedback**: `{base_topic}/{client_id}/feedback`
 
 This API reference covers all public interfaces provided by the Private Assistant Commons library.
