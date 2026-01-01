@@ -85,21 +85,26 @@ class LightControlSkill(BaseSkill):
 
 ```python
 import asyncio
-from private_assistant_commons import SkillConfig, mqtt_connection_handler
+from private_assistant_commons import MqttConfig, SkillConfig, mqtt_connection_handler
 
 async def main():
-    # Load configuration
-    config = SkillConfig(
-        mqtt_server_host="localhost",
-        mqtt_server_port=1883,
+    # Load MQTT configuration (from env vars: MQTT_HOST, MQTT_PORT, etc.)
+    mqtt_config = MqttConfig(
+        host="localhost",
+        port=1883,
+        # Optional: username="user", password="pass"
+    )
+
+    # Load skill configuration
+    skill_config = SkillConfig(
         client_id="light_control_skill"
     )
-    
+
     # Start the skill
     await mqtt_connection_handler(
         skill_class=LightControlSkill,
-        skill_config=config,
-        certainty_threshold=0.7  # Custom threshold
+        skill_config=skill_config,
+        mqtt_config=mqtt_config,
     )
 
 if __name__ == "__main__":
@@ -307,8 +312,6 @@ Skills can load configuration from YAML files:
 
 ```yaml
 # config/skill.yaml
-mqtt_server_host: "mqtt.local"
-mqtt_server_port: 1883
 client_id: "weather_skill"
 base_topic: "assistant"
 
@@ -320,8 +323,17 @@ api_key: "your-api-key-here"
 default_location: "San Francisco"
 ```
 
+MQTT configuration uses environment variables with the `MQTT_` prefix:
+
+```bash
+export MQTT_HOST=mqtt.local
+export MQTT_PORT=1883
+export MQTT_USERNAME=mqtt_user  # Optional
+export MQTT_PASSWORD=mqtt_pass  # Optional
+```
+
 ```python
-from private_assistant_commons import load_config, SkillConfig
+from private_assistant_commons import load_config, MqttConfig, SkillConfig
 
 # Custom config class
 class WeatherConfig(SkillConfig):
@@ -329,7 +341,10 @@ class WeatherConfig(SkillConfig):
     default_location: str = "Unknown"
 
 # Load from YAML
-config = load_config("config/", WeatherConfig)
+skill_config = load_config("config/", WeatherConfig)
+
+# Load MQTT config from environment variables
+mqtt_config = MqttConfig()
 ```
 
 ### Environment Variables

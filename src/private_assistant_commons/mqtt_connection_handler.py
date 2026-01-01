@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import aiomqtt
 
 if TYPE_CHECKING:
-    from private_assistant_commons import SkillConfig
+    from private_assistant_commons import MqttConfig, SkillConfig
     from private_assistant_commons.base_skill import BaseSkill
 
 
@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 async def mqtt_connection_handler(
     skill_class: type[BaseSkill],
     skill_config: SkillConfig,
+    mqtt_config: MqttConfig,
     retry_interval: int = 5,
     logger: logging.Logger | None = None,
     **kwargs: Any,
@@ -32,7 +33,8 @@ async def mqtt_connection_handler(
 
     Args:
         skill_class: Class that inherits from BaseSkill to instantiate
-        skill_config: MQTT and topic configuration
+        skill_config: Topic and skill configuration
+        mqtt_config: MQTT broker connection settings (host, port, credentials)
         retry_interval: Seconds to wait between reconnection attempts
         logger: Optional custom logger
         **kwargs: Additional arguments passed to skill constructor
@@ -45,10 +47,13 @@ async def mqtt_connection_handler(
     """
     if not logger:
         logger = logging.getLogger()
-    if skill_config.mqtt_server_host and skill_config.mqtt_server_port:
-        client = aiomqtt.Client(skill_config.mqtt_server_host, port=skill_config.mqtt_server_port, logger=logger)
-    else:
-        raise ValueError("Unknown mqtt config option combination.")
+    client = aiomqtt.Client(
+        hostname=mqtt_config.host,
+        port=mqtt_config.port,
+        username=mqtt_config.username,
+        password=mqtt_config.password,
+        logger=logger,
+    )
     while True:
         try:
             async with client as mqtt_client:

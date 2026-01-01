@@ -44,8 +44,6 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
         self.mock_config.skill_id = "test_skill"
         self.mock_config.intent_analysis_result_topic = "test/intent_result"
         self.mock_config.broadcast_topic = "test/broadcast"
-        self.mock_config.mqtt_server_host = "localhost"
-        self.mock_config.mqtt_server_port = 1883
         self.mock_config.intent_cache_size = 1000
         self.mock_logger = Mock(logging.Logger)
         self.default_alert = Alert(play_before=True)
