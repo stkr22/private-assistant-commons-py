@@ -414,7 +414,9 @@ class BaseSkill(ABC):
         else:
             raise ValueError("client_request must be provided if broadcast is False.")
 
-        # AIDEV-NOTE: Enhanced error handling with retry logic and error categorization
+        # AIDEV-NOTE: Custom retry logic required - aiomqtt provides connection-level
+        # reconnection but NOT publish-level retries. This implements exponential backoff
+        # for reliable message delivery even during transient network issues.
 
     async def _send_response_with_retry(
         self,
@@ -509,37 +511,14 @@ class BaseSkill(ABC):
         # All retries failed - handle gracefully
         duration = self.metrics.end_timer(timer_id)
         self.metrics.record_mqtt_event("publish", success=False, duration=duration)
-        await self._handle_publish_failure(last_error_type, operation, topic, response_text)
-        return False
-
-    async def _handle_publish_failure(
-        self,
-        error_type: BaseSkill.MqttErrorType | None,
-        operation: str,
-        topic: str,
-        response_text: str,
-    ) -> None:
-        """Handle persistent publish failures with appropriate recovery strategies.
-
-        Args:
-            error_type: Type of error that caused the failure
-            operation: Operation that failed for logging context
-            topic: MQTT topic that failed
-            response_text: Response text that failed to send
-        """
         self.logger.error(
             "%s: All retry attempts failed for topic '%s'. Error type: %s. Response: '%.100s'",
             operation,
             topic,
-            error_type.value if error_type else "unknown",
+            last_error_type.value if last_error_type else "unknown",
             response_text,
         )
-
-        # Future enhancement: Could implement fallback strategies here
-        # - Store failed messages for later retry
-        # - Send to alternative topic
-        # - Trigger reconnection logic
-        # - Update skill health status
+        return False
 
     # AIDEV-NOTE: Enhanced task management with lifecycle monitoring and cleanup
     def add_task(self, coro: Any, name: str | None = None, **metadata: Any) -> asyncio.Task[Any]:
@@ -703,6 +682,9 @@ class BaseSkill(ABC):
     ) -> UUID:
         """Register a new device in the global device registry.
 
+        If a device with the same name and pattern already exists for this skill,
+        logs a warning and returns the existing device ID instead of creating a duplicate.
+
         Args:
             device_type: Device type name (must be in supported_device_types)
             name: Human-readable device name
@@ -711,7 +693,7 @@ class BaseSkill(ABC):
             device_attributes: Optional skill-specific metadata (MQTT paths, templates, etc.)
 
         Returns:
-            UUID of the created device
+            UUID of the created or existing device
 
         Raises:
             ValueError: If device_type not in supported_device_types
@@ -728,6 +710,17 @@ class BaseSkill(ABC):
                 device_type_obj = await DeviceType.get_by_name(session, device_type)
                 if device_type_obj is None:
                     raise RuntimeError(f"Device type '{device_type}' not found in database")
+
+                # Check for duplicate device
+                existing_device = await self._find_duplicate_device(session, name, pattern)
+                if existing_device:
+                    self.logger.warning(
+                        "Device '%s' with pattern %s already exists (UUID: %s). Returning existing device.",
+                        name,
+                        pattern,
+                        existing_device.id,
+                    )
+                    return existing_device.id
 
                 # Get room UUID if specified
                 room_id = None
@@ -810,6 +803,30 @@ class BaseSkill(ABC):
         except Exception as e:
             self.logger.error("Failed to get skill devices: %s", e, exc_info=True)
             return []
+
+    async def _find_duplicate_device(
+        self,
+        session: AsyncSession,
+        name: str,
+        pattern: list[str],
+    ) -> GlobalDevice | None:
+        """Find existing device with same name and pattern for this skill.
+
+        Args:
+            session: Database session
+            name: Device name to check
+            pattern: Pattern list to check (exact match)
+
+        Returns:
+            Matching GlobalDevice or None if no duplicate found
+        """
+        statement = select(GlobalDevice).where(
+            GlobalDevice.skill_id == await self.global_skill_id,
+            GlobalDevice.name == name,
+            GlobalDevice.pattern == pattern,  # SQLModel/PostgreSQL array equality
+        )
+        result = await session.exec(statement)
+        return result.first()
 
     async def publish_device_update(self) -> None:
         """Publish device update notification to MQTT.

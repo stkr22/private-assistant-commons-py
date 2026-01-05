@@ -477,34 +477,6 @@ class SkillLogger:
 **Environment Variables:**
 - **LOG_LEVEL**: Sets default log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`)
 
-## MQTT Utilities
-
-### mqtt_pattern_to_regex
-
-Convert MQTT topic pattern with wildcards to regular expression.
-
-```python
-def mqtt_pattern_to_regex(pattern: str) -> re.Pattern:
-```
-
-**Parameters:**
-- **pattern**: MQTT topic pattern with wildcards
-  - `+` matches single topic level
-  - `#` matches multiple topic levels
-
-**Returns:** Compiled regular expression pattern
-
-**Examples:**
-```python
-# Single level wildcard
-pattern = mqtt_pattern_to_regex("sensor/+/temperature")
-assert pattern.match("sensor/kitchen/temperature")
-
-# Multi-level wildcard  
-pattern = mqtt_pattern_to_regex("sensor/#")
-assert pattern.match("sensor/kitchen/temperature/reading")
-```
-
 ## Error Handling
 
 The library uses standard Python exceptions with additional context:
