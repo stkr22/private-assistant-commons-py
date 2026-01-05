@@ -4,6 +4,19 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [5.5.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.4.0...v5.5.0) (2026-01-05)
+
+
+### Features
+
+* :sparkles: add device duplicate checking and document MQTT retry logic [AI] ([51a121a](https://github.com/stkr22/private-assistant-commons-py/commit/51a121a1d84ce05d36dbc3f057c35ee8066091b2))
+
+
+### Bug Fixes
+
+* **deps:** update minor updates ([68b2e96](https://github.com/stkr22/private-assistant-commons-py/commit/68b2e966babc363d57f3a0945f433130fbf70a92))
+* **deps:** update minor updates ([9151b5a](https://github.com/stkr22/private-assistant-commons-py/commit/9151b5a3f6fb301fbe9935d178fc5baf92eb14f5))
+
 ## [5.4.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.3.0...v5.4.0) (2026-01-01)
 
 

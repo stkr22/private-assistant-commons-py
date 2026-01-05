@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "private-assistant-commons"
-version = "5.4.0"
+version = "5.5.0"
 description = "Common utilities and base functionalities for all skills in the Private Assistant ecosystem."
 authors = [{ name = "stkr22", email = "stkr22@github.com" }]
 readme = "README.md"
