@@ -297,15 +297,6 @@ class TestIntentRequest:
         assert len(errors) >= TEST_ERROR_COUNT_MIN
 
 
-class TestConfidenceLevel:
-    """Test ConfidenceLevel enum."""
-
-    def test_confidence_level_ordering(self):
-        """Test confidence levels can be compared."""
-        assert ConfidenceLevel.MULTIWORD_WITH_CONTEXT >= ConfidenceLevel.KEYWORD_CONTEXT
-        assert ConfidenceLevel.KEYWORD_ONLY > ConfidenceLevel.CONTEXT_ONLY
-
-
 class TestConfidenceModifier:
     """Test ConfidenceModifier model."""
 

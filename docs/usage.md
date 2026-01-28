@@ -488,6 +488,52 @@ class TimerSkill(BaseSkill):
         await self.send_response(f"Cancelled {len(user_timers)} timers", client_request)
 ```
 
+### Handling Domain-Specific Queries
+
+Domain-specific query intents enable clearer intent classification and better skill routing. Use them to handle status queries in your domain.
+
+```python
+class MediaSkill(BaseSkill):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.supported_intents = {
+            IntentType.MEDIA_PLAY: 0.8,
+            IntentType.MEDIA_STOP: 0.8,
+            IntentType.MEDIA_QUERY: 0.7,  # Query current media state
+        }
+
+        # Lower threshold for status queries after playback actions
+        self.confidence_modifiers = {
+            IntentType.MEDIA_QUERY: [
+                ConfidenceModifier(
+                    trigger_intent=IntentType.MEDIA_PLAY,
+                    lowers_threshold_for=IntentType.MEDIA_QUERY,
+                    reduced_threshold=0.5,
+                    time_window_seconds=300,
+                ),
+            ],
+        }
+
+    async def process_request(self, intent_request: IntentRequest) -> None:
+        intent = intent_request.classified_intent
+
+        if intent.intent_type == IntentType.MEDIA_QUERY:
+            # Handle status queries: "what song is playing?"
+            current_track = await self.get_current_track()
+            response = f"Currently playing {current_track.title}"
+            await self.send_response(response, intent_request.client_request)
+        elif intent.intent_type == IntentType.MEDIA_PLAY:
+            # Handle playback commands
+            await self.start_playback(intent_request)
+```
+
+**Benefits of domain-specific queries:**
+- Eliminates keyword disambiguation between domains
+- "what song is playing?" routes to MEDIA_QUERY
+- "is the light on?" routes to DEVICE_QUERY
+- Enables domain-specific confidence modifiers for natural conversation flow
+
 ### Error Handling
 
 ```python
