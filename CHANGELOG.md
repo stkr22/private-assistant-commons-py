@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [6.1.0](https://github.com/stkr22/private-assistant-commons-py/compare/v6.0.0...v6.1.0) (2026-01-28)
+
+
+### Features
+
+* :card_file_box: add intent pattern database models and split database into domain-specific modules ([4ab56fc](https://github.com/stkr22/private-assistant-commons-py/commit/4ab56fc470f4dfe42125794fa7fe10527553fe9f))
+* :card_file_box: add intent pattern database models and split database into domain-specific modules ([fba196e](https://github.com/stkr22/private-assistant-commons-py/commit/fba196ef417cd82954db48d98b542fd68e087055))
+
 ## [6.0.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.5.0...v6.0.0) (2026-01-28)
 
 
