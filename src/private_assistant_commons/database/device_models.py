@@ -3,7 +3,7 @@
 This module provides SQLModel table definitions for managing the global device registry
 that enables pattern-based device matching across all skills in the Private Assistant ecosystem.
 
-The registry consists of four main entities:
+The registry consists of device-related entities:
 - Room: Physical locations where devices are placed
 - Skill: Skills that own and manage devices
 - DeviceType: Types of devices (e.g., light, switch, media_player)
@@ -246,7 +246,9 @@ class GlobalDevice(SQLModel, table=True):
     name: str = Field(index=True)
     pattern: list[str] = Field(sa_column=Column(ARRAY(String)))
     device_attributes: dict[str, Any] | None = Field(
-        default=None, sa_column=Column(JSON), description="Skill-specific device metadata (MQTT paths, templates, etc.)"
+        default=None,
+        sa_column=Column(JSON),
+        description="Skill-specific device metadata (MQTT paths, templates, etc.)",
     )
 
     # Foreign key relationships
