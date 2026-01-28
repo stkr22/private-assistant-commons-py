@@ -36,9 +36,9 @@ class IntentType(str, Enum):
     MEDIA_VOLUME_SET = "media.volume_set"
 
     # Queries
-    QUERY_STATUS = "query.status"
-    QUERY_LIST = "query.list"
-    QUERY_TIME = "query.time"
+    DEVICE_QUERY = "device.query"
+    MEDIA_QUERY = "media.query"
+    DATA_QUERY = "data.query"
 
     # Scene/Automation
     SCENE_APPLY = "scene.apply"
@@ -46,10 +46,6 @@ class IntentType(str, Enum):
     # Time/Scheduling
     SCHEDULE_SET = "schedule.set"
     SCHEDULE_CANCEL = "schedule.cancel"
-
-    # System
-    SYSTEM_HELP = "system.help"
-    SYSTEM_REFRESH = "system.refresh"
 
 
 class ConfidenceLevel(float, Enum):

@@ -143,15 +143,35 @@ class IntentType(str, Enum):
     MEDIA_PLAY = "media.play"
     MEDIA_STOP = "media.stop"
     MEDIA_NEXT = "media.next"
-    QUERY_STATUS = "query.status"
-    QUERY_LIST = "query.list"
-    QUERY_TIME = "query.time"
+    MEDIA_VOLUME_UP = "media.volume_up"
+    MEDIA_VOLUME_DOWN = "media.volume_down"
+    MEDIA_VOLUME_SET = "media.volume_set"
+    MEDIA_QUERY = "media.query"
+    DEVICE_QUERY = "device.query"
+    DATA_QUERY = "data.query"
     SCENE_APPLY = "scene.apply"
     SCHEDULE_SET = "schedule.set"
     SCHEDULE_CANCEL = "schedule.cancel"
-    SYSTEM_HELP = "system.help"
-    SYSTEM_REFRESH = "system.refresh"
 ```
+
+#### Intent Categories
+
+**Device Control** - Control and query physical/virtual devices:
+- DEVICE_ON, DEVICE_OFF, DEVICE_SET, DEVICE_OPEN, DEVICE_CLOSE, DEVICE_QUERY
+
+**Media Control** - Control and query media playback:
+- MEDIA_PLAY, MEDIA_STOP, MEDIA_NEXT, MEDIA_VOLUME_UP, MEDIA_VOLUME_DOWN, MEDIA_VOLUME_SET, MEDIA_QUERY
+
+**Queries** - Request information:
+- DEVICE_QUERY: "is the light on?", "what's the temperature?"
+- MEDIA_QUERY: "what song is playing?", "what's the volume?"
+- DATA_QUERY: "what's the weather?", "how many days until..."
+
+**Scene/Automation** - Apply predefined scenes:
+- SCENE_APPLY
+
+**Time/Scheduling** - Manage scheduled actions:
+- SCHEDULE_SET, SCHEDULE_CANCEL
 
 ### EntityType
 
