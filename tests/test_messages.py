@@ -33,7 +33,7 @@ class TestClientRequest:
                 output_topic=None,  # Required field
             )
         errors = exc_info.value.errors()
-        assert len(errors) >= 3  # noqa: PLR2004
+        assert len(errors) >= 3
 
 
 class TestAlert:

@@ -25,34 +25,34 @@ graph TB
     S1[Skill 1<br/>Light Control]
     S2[Skill 2<br/>Timer/Alarm]
     S3[Skill N<br/>Weather/etc]
-    
+
     LC -->|Audio Stream<br/>WebSocket| VB
     VB -->|Audio Chunks| STT
     STT -->|Transcribed Text| VB
     VB -->|ClientRequest<br/>MQTT| MB
-    
+
     MB -->|ClientRequest| IAE
     IAE -->|IntentRequest<br/>assistant/intent_engine/result| MB
-    
+
     MB -->|MQTT Subscribe| S1
-    MB -->|MQTT Subscribe| S2  
+    MB -->|MQTT Subscribe| S2
     MB -->|MQTT Subscribe| S3
-    
+
     S1 -->|Response Messages<br/>client/broadcast topics| MB
     S2 -->|Response Messages<br/>client/broadcast topics| MB
     S3 -->|Response Messages<br/>client/broadcast topics| MB
-    
+
     MB -->|Response Messages| VB
     VB -->|Response Text| TTS
     TTS -->|Audio Response| VB
     VB -->|Audio + Alerts<br/>WebSocket| LC
-    
+
     classDef mqtt fill:#e1f5fe
     classDef skill fill:#f3e5f5
     classDef bridge fill:#e8f5e8
     classDef api fill:#fff3e0
     classDef client fill:#f1f8e9
-    
+
     class MB mqtt
     class S1,S2,S3 skill
     class VB,IAE bridge
@@ -184,32 +184,32 @@ sequenceDiagram
     participant VB as Voice Bridge
     participant STT as STT API
     participant TTS as TTS API
-    participant MB as MQTT Broker  
+    participant MB as MQTT Broker
     participant IAE as Intent Analysis Engine
     participant LS as Light Skill
     participant TS as Timer Skill
-    
+
     User->>LC: Speaks: "Turn off lights in living room"
     LC->>VB: Audio stream (WebSocket)
     VB->>STT: Audio chunks
     STT->>VB: Transcribed text: "Turn off lights in living room"
     VB->>MB: ClientRequest (MQTT)
-    
+
     MB->>IAE: ClientRequest message
     IAE->>MB: IntentRequest<br/>topic: assistant/intent_engine/result
-    
+
     MB->>LS: MQTT message (subscribed)
     MB->>TS: MQTT message (subscribed)
-    
+
     LS->>LS: calculate_certainty() = 0.95
     TS->>TS: calculate_certainty() = 0.1
-    
+
     Note over LS: certainty ≥ threshold (0.8)
     LS->>LS: process_request()
     LS->>MB: Response: "Turning off living room lights"<br/>topic: client/output/xyz
-    
+
     Note over TS: certainty < threshold - ignored
-    
+
     MB->>VB: Response message (subscribed to output topics)
     VB->>TTS: Response text + alert config
     TTS->>VB: Generated audio
@@ -235,7 +235,7 @@ sequenceDiagram
   - Uses `client_request.output_topic`
   - Sent to specific user/device
 - **Broadcast responses**: `skill.broadcast_response(text)`
-  - Uses `config.broadcast_topic`  
+  - Uses `config.broadcast_topic`
   - Sent to all connected clients
 
 ## Skill Lifecycle
@@ -302,7 +302,7 @@ async def handle_client_request_message(payload):
 
 ### MQTT Topics
 - **Intent Results**: `assistant/intent_engine/result`
-- **Broadcast**: `assistant/comms_bridge/broadcast`  
+- **Broadcast**: `assistant/comms_bridge/broadcast`
 - **Skill Feedback**: `assistant/{skill_id}/feedback`
 
 ### External Systems

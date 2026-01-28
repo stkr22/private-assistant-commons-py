@@ -18,6 +18,7 @@ class ClientRequest(BaseModel):
         text: Raw voice command text (e.g., "turn off the lights in the living room")
         room: Location where command was spoken (e.g., "kitchen")
         output_topic: MQTT topic where responses should be sent for this specific user/device
+
     """
 
     id: uuid.UUID
@@ -36,6 +37,7 @@ class Alert(BaseModel):
         play_before: Play sound before speaking the response text
         play_after: Play sound after speaking the response text
         sound: Sound file name to play (configured in voice bridge)
+
     """
 
     play_before: bool = False
@@ -53,6 +55,7 @@ class Response(BaseModel):
     Attributes:
         text: Response text to be spoken/displayed to user
         alert: Optional audio alert configuration for enhanced feedback
+
     """
 
     text: str

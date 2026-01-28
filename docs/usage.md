@@ -139,14 +139,14 @@ Extract and use numbers from voice commands:
 ```python
 async def process_request(self, intent_request: IntentRequest) -> None:
     intent = intent_request.classified_intent
-    
+
     # Look for duration entities
     duration_minutes = None
     for entity in intent.entities.get("durations", []):
         if entity.type == EntityType.DURATION:
             duration_minutes = entity.normalized_value
             break
-    
+
     if duration_minutes:
         # Set timer for specified duration
         await self._start_timer(duration_minutes)
@@ -159,17 +159,17 @@ Use task spawning for delayed or concurrent operations:
 ```python
 async def process_request(self, intent_request: IntentRequest) -> None:
     client_request = intent_request.client_request
-    
+
     # Acknowledge immediately
     await self.send_response("Setting timer", client_request)
-    
+
     # Spawn background timer task
     self.add_task(self._timer_task(duration, client_request))
 
 async def _timer_task(self, duration_minutes: int, client_request):
     """Background task that waits then alerts."""
     await asyncio.sleep(duration_minutes * 60)
-    
+
     # Send alert after timer completes
     alert = Alert(play_before=True, sound="timer")
     await self.send_response(
@@ -186,15 +186,15 @@ Handle location context in commands:
 ```python
 async def process_request(self, intent_request: IntentRequest) -> None:
     client_request = intent_request.client_request
-    
+
     # Get target rooms from entities or fallback to origin
     room_entities = intent_request.classified_intent.entities.get("rooms", [])
     target_rooms = [e.normalized_value for e in room_entities] or [client_request.room]
-    
+
     # Process for each target room
     for room in target_rooms:
         await self._control_device_in_room(room, action="toggle")
-    
+
     room_list = " and ".join(target_rooms)
     await self.send_response(f"Controlled devices in {room_list}", client_request)
 ```
@@ -389,7 +389,7 @@ await self.broadcast_response("System maintenance in 5 minutes")
 ```python
 # Send to specific user
 await self.publish_with_alert(
-    "Personal reminder set", 
+    "Personal reminder set",
     client_request=client_request,
     broadcast=False
 )
@@ -470,21 +470,21 @@ class TimerSkill(BaseSkill):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.active_timers: dict[uuid.UUID, dict] = {}
-        
+
     async def process_request(self, intent_request: IntentRequest) -> None:
         if intent_request.classified_intent.intent_type == IntentType.SCHEDULE_CANCEL:
             await self._cancel_timers(intent_request.client_request)
         else:
             await self._start_new_timer(intent_request)
-            
+
     async def _cancel_timers(self, client_request):
         # Cancel all timers for this user
-        user_timers = [t for t in self.active_timers.values() 
+        user_timers = [t for t in self.active_timers.values()
                       if t["client_request"].id == client_request.id]
-        
+
         for timer in user_timers:
             timer["task"].cancel()
-            
+
         await self.send_response(f"Cancelled {len(user_timers)} timers", client_request)
 ```
 
@@ -493,15 +493,15 @@ class TimerSkill(BaseSkill):
 ```python
 async def process_request(self, intent_request: IntentRequest) -> None:
     client_request = intent_request.client_request
-    
+
     try:
         result = await self._call_external_api()
         await self.send_response(f"Result: {result}", client_request)
-        
+
     except asyncio.TimeoutError:
         self.logger.warning("API call timed out")
         await self.send_response("Service temporarily unavailable", client_request)
-        
+
     except Exception as e:
         self.logger.error("Unexpected error: %s", e, exc_info=True)
         await self.send_response("Sorry, something went wrong", client_request)
@@ -566,7 +566,7 @@ metrics_text = skill.metrics.get_prometheus_metrics()
 
 # Typical metrics exported:
 # - skill_messages_processed_total
-# - skill_messages_failed_total  
+# - skill_messages_failed_total
 # - skill_message_processing_duration_seconds
 # - skill_throughput_messages_per_second
 # - skill_mqtt_publishes_total
@@ -576,7 +576,7 @@ metrics_text = skill.metrics.get_prometheus_metrics()
 # - skill_uptime_seconds
 ```
 
-### HTTP Metrics Endpoint 
+### HTTP Metrics Endpoint
 
 Add a metrics endpoint to your skill:
 
@@ -588,33 +588,33 @@ class MonitoredSkill(BaseSkill):
     async def skill_preparations(self) -> None:
         # Start HTTP server for metrics
         await self._start_metrics_server()
-    
+
     async def _start_metrics_server(self):
         """Start HTTP server for Prometheus metrics scraping."""
         app = web.Application()
         app.router.add_get('/metrics', self._metrics_handler)
         app.router.add_get('/health', self._health_handler)
-        
+
         runner = web_runner.AppRunner(app)
         await runner.setup()
-        
+
         site = web_runner.TCPSite(runner, '0.0.0.0', 8080)
         await site.start()
-        
+
         self.logger.info("Metrics server started on :8080")
-    
+
     async def _metrics_handler(self, request):
         """Serve Prometheus metrics."""
         metrics_text = self.metrics.get_prometheus_metrics()
         return web.Response(text=metrics_text, content_type='text/plain')
-    
+
     async def _health_handler(self, request):
         """Serve health check information."""
         from private_assistant_commons.metrics import HealthChecker
-        
+
         health_checker = HealthChecker(self.metrics)
         health_status = health_checker.check_health()
-        
+
         status_code = 200 if health_status["overall_status"] == "healthy" else 503
         return web.json_response(health_status, status=status_code)
 ```
@@ -626,7 +626,7 @@ Configure Prometheus to scrape your skills:
 ```yaml
 # service-monitor.yaml
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor  
+kind: ServiceMonitor
 metadata:
   name: private-assistant-skills
 spec:
@@ -638,7 +638,7 @@ spec:
     path: /metrics
     interval: 30s
 ---
-# service.yaml  
+# service.yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -683,7 +683,7 @@ Example Grafana queries for skill monitoring:
 # Message processing rate
 rate(skill_messages_processed_total[5m])
 
-# Error rate percentage  
+# Error rate percentage
 rate(skill_messages_failed_total[5m]) / rate(skill_messages_processed_total[5m]) * 100
 
 # 95th percentile latency
@@ -705,14 +705,14 @@ class WeatherSkill(BaseSkill):
     async def process_request(self, intent_request: IntentRequest) -> None:
         # Start timing custom operation
         timer_id = self.metrics.start_timer("weather_api_call")
-        
+
         try:
             weather_data = await self._get_weather()
-            
+
             # Record successful API call
             duration = self.metrics.end_timer(timer_id)
             self.logger.info("Weather API call completed in %.3fs", duration)
-            
+
         except Exception as e:
             # Record failed operation
             self.metrics.end_timer(timer_id)
@@ -735,7 +735,7 @@ async def skill():
     config = SkillConfig()
     mqtt_client = AsyncMock()
     task_group = AsyncMock()
-    
+
     skill = LightControlSkill(config, mqtt_client, task_group)
     return skill
 
@@ -760,7 +760,7 @@ async def test_certainty_calculation(skill):
         classified_intent=classified_intent,
         client_request=client_request
     )
-    
+
     certainty = await skill.calculate_certainty(intent)
     assert certainty == 0.9
 ```

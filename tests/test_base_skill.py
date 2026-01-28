@@ -27,7 +27,6 @@ class ConcreteTestSkill(BaseSkill):
         """Skip database initialization in tests."""
         # Override to prevent database operations during tests
         # Database operations should be tested separately in database-specific tests
-        pass
 
 
 class TestBaseSkill(unittest.IsolatedAsyncioTestCase):

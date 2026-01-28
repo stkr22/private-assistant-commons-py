@@ -319,8 +319,8 @@ class TestConfidenceModifier:
         )
         assert modifier.trigger_intent == IntentType.MEDIA_PLAY
         assert modifier.lowers_threshold_for == IntentType.MEDIA_STOP
-        assert modifier.reduced_threshold == 0.5  # noqa: PLR2004
-        assert modifier.time_window_seconds == 600  # noqa: PLR2004
+        assert modifier.reduced_threshold == 0.5
+        assert modifier.time_window_seconds == 600
 
     def test_confidence_modifier_validation_error(self):
         """Test validation errors for invalid confidence modifier."""

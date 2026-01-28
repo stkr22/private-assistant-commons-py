@@ -62,9 +62,9 @@ class ConfidenceLevel(float, Enum):
 
     MULTIWORD_WITH_CONTEXT = 1.0  # Multi-word keyword + context hints (e.g., "turn on" + "lights")
     MULTIWORD_ONLY = 0.9  # Multi-word keyword without context (e.g., "switch off" alone)
-    KEYWORD_MULTI_CONTEXT = 0.9  # Single keyword + multiple context hints (e.g., "set" + "temperature" + "degrees")
+    KEYWORD_MULTI_CONTEXT = 0.85  # Single keyword + multiple context hints (e.g., "set" + "temperature" + "degrees")
     KEYWORD_CONTEXT = 0.8  # Single keyword + single context hint (e.g., "stop" + "music")
-    ALL_KEYWORDS = 0.8  # All pattern keywords present
+    ALL_KEYWORDS = 0.75  # All pattern keywords present
     KEYWORD_ONLY = 0.5  # Single keyword match without context
     CONTEXT_ONLY = 0.3  # Context hints without keywords
 

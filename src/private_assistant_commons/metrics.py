@@ -71,6 +71,7 @@ class MetricsCollector:
 
         Args:
             skill_name: Name of the skill for metrics identification
+
         """
         self.skill_name = skill_name
         self.metrics = PerformanceMetrics()
@@ -86,6 +87,7 @@ class MetricsCollector:
 
         Returns:
             Timer ID for ending the timer
+
         """
         timer_id = f"{operation}_{int(time.time() * 1000)}_{id(self)}"
         with self._lock:
@@ -100,6 +102,7 @@ class MetricsCollector:
 
         Returns:
             Duration in seconds, or None if timer not found
+
         """
         with self._lock:
             start_time = self._active_timers.pop(timer_id, None)
@@ -124,6 +127,7 @@ class MetricsCollector:
         Args:
             success: Whether message processing succeeded
             certainty: Certainty score for the message (0.0-1.0)
+
         """
         with self._lock:
             if success:
@@ -141,6 +145,7 @@ class MetricsCollector:
         Args:
             event: Event type ('created', 'completed', 'failed')
             duration: Task duration in seconds (for completed/failed events)
+
         """
         with self._lock:
             if event == "created":
@@ -162,6 +167,7 @@ class MetricsCollector:
             event: Event type ('publish', 'reconnection')
             success: Whether the operation succeeded
             duration: Operation duration in seconds
+
         """
         with self._lock:
             if event == "publish":
@@ -185,6 +191,7 @@ class MetricsCollector:
         Args:
             event: Event type ('hit', 'miss', 'eviction')
             cache_size: Current cache size
+
         """
         with self._lock:
             if event == "hit":
@@ -202,6 +209,7 @@ class MetricsCollector:
 
         Args:
             level: Log level ('ERROR', 'WARNING', etc.)
+
         """
         with self._lock:
             if level == "ERROR":
@@ -214,6 +222,7 @@ class MetricsCollector:
 
         Returns:
             Dictionary containing all collected metrics and computed statistics
+
         """
         with self._lock:
             now = datetime.now()
@@ -328,6 +337,7 @@ class MetricsCollector:
 
         Returns:
             Prometheus-formatted metrics string
+
         """
         summary = self.get_metrics_summary()
         msg_processed = summary["message_processing"]["total_processed"]
@@ -391,6 +401,7 @@ class MetricsCollector:
 
         Returns:
             JSON-formatted metrics string
+
         """
         summary = self.get_metrics_summary()
         return json.dumps(summary, indent=2)
@@ -404,6 +415,7 @@ class HealthChecker:
 
         Args:
             metrics_collector: Metrics collector to monitor
+
         """
         self.metrics = metrics_collector
         self._logger = logging.getLogger(f"{__name__}.health")
@@ -413,6 +425,7 @@ class HealthChecker:
 
         Returns:
             Health status dictionary with issues and recommendations
+
         """
         summary = self.metrics.get_metrics_summary()
         health_status: dict[str, Any] = {"overall_status": "healthy", "checks": {}, "alerts": [], "recommendations": []}

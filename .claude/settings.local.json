@@ -16,7 +16,8 @@
       "Bash(gh issue edit:*)",
       "mcp__context7__resolve-library-id",
       "Bash(mkdir:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(uv add:*)"
     ],
     "deny": []
   }

@@ -44,6 +44,7 @@ async def mqtt_connection_handler(
     2. Skill instantiation and setup
     3. Task group management for concurrent operations
     4. Automatic reconnection on connection loss
+
     """
     if not logger:
         logger = logging.getLogger()

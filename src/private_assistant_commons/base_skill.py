@@ -1,3 +1,9 @@
+"""Base skill implementation for Private Assistant.
+
+This module provides the abstract base class for all skills in the Private Assistant ecosystem,
+handling MQTT communication, intent processing, and device registry integration.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -78,6 +84,7 @@ class BaseSkill(ABC):
             engine: Async database engine for device registry operations (required)
             certainty_threshold: Minimum confidence score to process requests (0.0-1.0)
             logger: Optional custom logger, defaults to skill-specific logger
+
         """
         self.config_obj: skill_config.SkillConfig = config_obj
         self.certainty_threshold: float = certainty_threshold
@@ -118,6 +125,7 @@ class BaseSkill(ABC):
 
         Returns:
             Decoded string or None if payload type is unsupported
+
         """
         # AIDEV-NOTE: Enhanced type hint coverage - supports all MQTT payload types
         if isinstance(payload, bytes | bytearray):
@@ -159,6 +167,7 @@ class BaseSkill(ABC):
                 # Custom initialization
                 await self.register_device("timer", "timer", ["timer", "set timer"])
             ```
+
         """
         # Auto-register skill and device types
         await self.ensure_skill_registered()
@@ -177,6 +186,7 @@ class BaseSkill(ABC):
 
         This is the main message processing loop that runs continuously,
         filtering messages by topic and delegating to appropriate handlers.
+
         """
         async for message in client.messages:
             self.logger.debug("Received message on topic %s", message.topic)
@@ -209,6 +219,7 @@ class BaseSkill(ABC):
             Tuple of (should_handle, effective_threshold):
                 - should_handle: True if the skill should handle this request, False otherwise
                 - effective_threshold: The confidence threshold used (after applying modifiers)
+
         """
         classified_intent = intent_request.classified_intent
 
@@ -257,6 +268,7 @@ class BaseSkill(ABC):
 
         This method enables concurrent message processing while maintaining
         proper error handling for individual message failures.
+
         """
         try:
             await self.handle_client_request_message(payload_str)
@@ -276,6 +288,7 @@ class BaseSkill(ABC):
         3. Call _should_handle_intent() for 2-step decision process (intent + confidence)
         4. Process request if checks pass (entity validation happens in process_request)
         5. Track processed intent in context for future threshold adjustments
+
         """
         # Start timing for performance metrics
         timer_id = self.metrics.start_timer("message_processing")
@@ -334,8 +347,8 @@ class BaseSkill(ABC):
         - Send immediate response via send_response()
         - Spawn background tasks for delayed actions (e.g., timers)
         - Interact with external APIs or databases
+
         """
-        pass
 
     async def send_response(
         self,
@@ -355,6 +368,7 @@ class BaseSkill(ABC):
 
         Publishes response to the client-specific output topic for targeted delivery.
         Uses exponential backoff retry logic for improved reliability.
+
         """
         return await self._send_response_with_retry(
             response_text=response_text, topic=client_request.output_topic, alert=alert, operation="send_response"
@@ -376,6 +390,7 @@ class BaseSkill(ABC):
 
         Publishes response to the global broadcast topic for system-wide announcements.
         Uses exponential backoff retry logic for improved reliability.
+
         """
         return await self._send_response_with_retry(
             response_text=response_text,
@@ -402,6 +417,7 @@ class BaseSkill(ABC):
 
         Raises:
             ValueError: If broadcast=False but client_request is None
+
         """
         if alert is None:
             alert = self.default_alert
@@ -437,6 +453,7 @@ class BaseSkill(ABC):
 
         Returns:
             bool: True if response was successfully published, False otherwise
+
         """
         response = Response(text=response_text, alert=alert)
         last_error_type = None
@@ -538,6 +555,7 @@ class BaseSkill(ABC):
         - Concurrent API calls or database operations
 
         The task is automatically tracked and cleaned up on completion.
+
         """
         if name is None:
             name = getattr(coro, "__name__", f"anonymous_coro_{id(coro)}")
@@ -564,6 +582,7 @@ class BaseSkill(ABC):
         Args:
             task_id: Internal task identifier
             task: Completed task
+
         """
         task_info = self._active_tasks.pop(task_id, None)
         if not task_info:
@@ -599,6 +618,7 @@ class BaseSkill(ABC):
 
         Returns:
             Dict containing task statistics and active task details
+
         """
         return {
             "active_count": len(self._active_tasks),
@@ -626,6 +646,7 @@ class BaseSkill(ABC):
 
         Raises:
             RuntimeError: If skill registration fails
+
         """
         if self._global_skill_id is None:
             await self.ensure_skill_registered()
@@ -640,6 +661,7 @@ class BaseSkill(ABC):
 
         Raises:
             RuntimeError: If database operation fails
+
         """
         try:
             async with AsyncSession(self.engine) as session:
@@ -658,6 +680,7 @@ class BaseSkill(ABC):
 
         Raises:
             RuntimeError: If database operation fails
+
         """
         if not self.supported_device_types:
             self.logger.debug("No device types to register")
@@ -698,6 +721,7 @@ class BaseSkill(ABC):
         Raises:
             ValueError: If device_type not in supported_device_types
             RuntimeError: If database operation fails
+
         """
         if device_type not in self.supported_device_types:
             raise ValueError(
@@ -785,6 +809,7 @@ class BaseSkill(ABC):
 
         Returns:
             List of GlobalDevice instances with relationships loaded, or empty list on error
+
         """
         try:
             async with AsyncSession(self.engine) as session:
@@ -819,6 +844,7 @@ class BaseSkill(ABC):
 
         Returns:
             Matching GlobalDevice or None if no duplicate found
+
         """
         statement = select(GlobalDevice).where(
             GlobalDevice.skill_id == await self.global_skill_id,

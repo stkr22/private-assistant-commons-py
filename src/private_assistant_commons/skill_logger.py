@@ -61,6 +61,7 @@ class SkillLogger:
         Environment Variables:
             LOG_LEVEL: Sets default log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
             RICH_NO_COLOR: Set to disable colored output (useful for CI/CD)
+
         """
         if level is None:
             # AIDEV-NOTE: Respects LOG_LEVEL environment variable for runtime log control
@@ -124,6 +125,7 @@ class SkillLogger:
 
         Returns:
             Logger configured with the provided Console instance
+
         """
         if config is None:
             config = LoggerConfig()
@@ -152,6 +154,7 @@ class SkillLogger:
 
         Returns:
             Configured Console instance with skill-specific theme
+
         """
         return Console(
             theme=SkillLogger._SKILL_THEME,
