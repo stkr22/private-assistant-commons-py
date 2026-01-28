@@ -33,7 +33,6 @@ class TestConcurrentSkill(BaseSkill):
 
     async def skill_preparations(self) -> None:
         """Test implementation of skill preparations."""
-        pass
 
     async def process_request(self, intent_request: intent.IntentRequest) -> None:
         # Track processed messages

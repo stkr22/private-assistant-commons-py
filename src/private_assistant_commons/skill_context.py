@@ -32,6 +32,7 @@ class ConfidenceModifier(BaseModel):
     Example:
         If a user just said "turn on the lights", a follow-up command
         "turn them off" might have lower confidence but should still be handled.
+
     """
 
     trigger_intent: IntentType
@@ -62,6 +63,7 @@ class SkillContext(BaseModel):
 
         Returns:
             True if there are recent actions within the recency window
+
         """
         self._cleanup_expired_actions()
         return len(self.recent_actions) > 0
@@ -75,6 +77,7 @@ class SkillContext(BaseModel):
 
         Returns:
             The most recent matching action, or None if not found
+
         """
         self._cleanup_expired_actions()
 
@@ -99,6 +102,7 @@ class SkillContext(BaseModel):
 
         Returns:
             True if this intent type was recently handled
+
         """
         intent_str = intent_type.value if isinstance(intent_type, IntentType) else intent_type
         return self.find_recent_action(intent_str) is not None
@@ -120,6 +124,7 @@ class SkillContext(BaseModel):
         Args:
             action: Name of the action executed
             entities: Optional entities associated with the action
+
         """
         recent_action = RecentAction(
             action=action,
@@ -137,6 +142,7 @@ class SkillContext(BaseModel):
 
         Returns:
             The most recent action, or None if no actions exist
+
         """
         return self.recent_actions[-1] if self.recent_actions else None
 
@@ -148,6 +154,7 @@ class SkillContext(BaseModel):
 
         Returns:
             Dictionary of entities from the most recent action, or all recent entities
+
         """
         if not self.recent_actions:
             return {}

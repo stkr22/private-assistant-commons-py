@@ -33,6 +33,7 @@ Example:
         room_id=bedroom.id,
         skill_id=switch_skill.id
     )
+
 """
 
 from datetime import datetime
@@ -54,6 +55,7 @@ class Room(SQLModel, table=True):
         name: Human-readable room name (unique across all rooms)
         created_at: Timestamp when the room was created
         updated_at: Timestamp when the room was last modified
+
     """
 
     __tablename__ = "rooms"
@@ -76,6 +78,7 @@ class Room(SQLModel, table=True):
 
         Returns:
             Room instance if found, None otherwise
+
         """
         result = await session.exec(select(cls).where(cls.name == name))
         return result.first()  # type: ignore[no-any-return]
@@ -93,6 +96,7 @@ class Skill(SQLModel, table=True):
         name: Unique skill name (e.g., "switch-skill", "media-skill")
         created_at: Timestamp when the skill was registered
         updated_at: Timestamp when the skill was last modified
+
     """
 
     __tablename__ = "skills"
@@ -115,6 +119,7 @@ class Skill(SQLModel, table=True):
 
         Returns:
             Skill instance if found, None otherwise
+
         """
         result = await session.exec(select(cls).where(cls.name == name))
         return result.first()  # type: ignore[no-any-return]
@@ -129,6 +134,7 @@ class Skill(SQLModel, table=True):
 
         Returns:
             Skill instance (existing or newly created)
+
         """
         skill = await cls.get_by_name(session, name)
         if skill is None:
@@ -150,6 +156,7 @@ class DeviceType(SQLModel, table=True):
         name: Unique device type name (e.g., "light", "switch", "media_player")
         created_at: Timestamp when the device type was created
         updated_at: Timestamp when the device type was last modified
+
     """
 
     __tablename__ = "device_types"
@@ -172,6 +179,7 @@ class DeviceType(SQLModel, table=True):
 
         Returns:
             DeviceType instance if found, None otherwise
+
         """
         result = await session.exec(select(cls).where(cls.name == name))
         return result.first()  # type: ignore[no-any-return]
@@ -186,6 +194,7 @@ class DeviceType(SQLModel, table=True):
 
         Returns:
             DeviceType instance (existing or newly created)
+
         """
         device_type = await cls.get_by_name(session, name)
         if device_type is None:
@@ -227,6 +236,7 @@ class GlobalDevice(SQLModel, table=True):
         Skills should publish to 'assistant/global_device_update' MQTT topic when
         devices are added, updated, or removed to trigger cache refresh in the
         intent engine.
+
     """
 
     __tablename__ = "global_devices"

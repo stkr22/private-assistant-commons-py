@@ -23,6 +23,7 @@ class PostgresConfig(BaseSettings):
         >>>
         >>> # Or override with explicit values
         >>> config = PostgresConfig(user="myuser", host="db.example.com")
+
     """
 
     model_config = SettingsConfigDict(env_prefix="POSTGRES_")
@@ -110,6 +111,7 @@ def create_skill_engine(  # noqa: PLR0913
         ...     pool_size=10,
         ...     echo=True  # for debugging
         ... )
+
     """
     if config is None:
         config = PostgresConfig()

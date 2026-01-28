@@ -1,3 +1,9 @@
+"""Configuration management for Private Assistant skills.
+
+Provides configuration classes for MQTT connections and skill-specific settings,
+with support for environment variables and YAML file loading.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -32,6 +38,12 @@ class MqttConfig(BaseSettings):
 
 
 class SkillConfig(BaseSettings):
+    """Configuration for Private Assistant skills.
+
+    Defines MQTT topics, client identification, and cache settings.
+    Most values have sensible defaults that can be overridden via environment variables or config files.
+    """
+
     client_id: str = "default_skill"
     base_topic: str = "assistant"
     intent_analysis_result_topic: str = "assistant/intent_engine/result"
@@ -44,6 +56,12 @@ class SkillConfig(BaseSettings):
 
     @property
     def feedback_topic(self) -> str:
+        """Generate the MQTT topic for skill feedback messages.
+
+        Returns:
+            str: Skill-specific feedback topic (e.g., "assistant/skill_name/feedback")
+
+        """
         return f"{self.base_topic}/{self.client_id}/feedback"
 
     @property
@@ -53,14 +71,14 @@ class SkillConfig(BaseSettings):
 
 
 def combine_yaml_files(file_paths: list[Path]) -> dict[str, Any]:
-    """
-    Combine multiple YAML files into a single dictionary.
+    """Combine multiple YAML files into a single dictionary.
 
     Args:
         file_paths (list[Path]): List of paths to YAML files.
 
     Returns:
         dict: Combined dictionary from all YAML files.
+
     """
     combined_data = {}
     for file_path in file_paths:
@@ -71,8 +89,7 @@ def combine_yaml_files(file_paths: list[Path]) -> dict[str, Any]:
 
 
 def load_config[T: BaseModel](config_path: str | Path, config_class: type[T]) -> T:
-    """
-    Load and validate configuration from YAML files.
+    """Load and validate configuration from YAML files.
 
     Args:
         config_path (Union[str, Path]): Path to a YAML file or a directory containing YAML files.
@@ -84,6 +101,7 @@ def load_config[T: BaseModel](config_path: str | Path, config_class: type[T]) ->
     Raises:
         FileNotFoundError: If no YAML files are found.
         ValidationError: If the combined data does not conform to the Pydantic model.
+
     """
     config_path = Path(config_path)
 
