@@ -4,6 +4,17 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [6.0.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.5.0...v6.0.0) (2026-01-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* Removed QUERY_STATUS, QUERY_LIST, QUERY_TIME, SYSTEM_HELP, SYSTEM_REFRESH intents Added DEVICE_QUERY, MEDIA_QUERY, DATA_QUERY intents
+
+### Code Refactoring
+
+* :recycle: replace generic query with domain-specific query intents ([043b45a](https://github.com/stkr22/private-assistant-commons-py/commit/043b45a57e1c1b20f7b4362a0c49d6ebbbe2959b))
+
 ## [5.5.0](https://github.com/stkr22/private-assistant-commons-py/compare/v5.4.0...v5.5.0) (2026-01-05)
 
 
