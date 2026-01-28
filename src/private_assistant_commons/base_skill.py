@@ -28,7 +28,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from private_assistant_commons import intent, skill_config, skill_logger
-from private_assistant_commons.database.models import DeviceType, GlobalDevice, Room, Skill
+from private_assistant_commons.database import DeviceType, GlobalDevice, Room, Skill
 from private_assistant_commons.messages import Alert, ClientRequest, Response
 from private_assistant_commons.metrics import MetricsCollector
 from private_assistant_commons.skill_context import ConfidenceModifier, SkillContext
