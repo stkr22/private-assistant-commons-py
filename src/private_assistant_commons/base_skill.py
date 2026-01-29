@@ -28,7 +28,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from private_assistant_commons import intent, skill_config, skill_logger
-from private_assistant_commons.database import DeviceType, GlobalDevice, Room, Skill
+from private_assistant_commons.database import (
+    DeviceType,
+    GlobalDevice,
+    IntentPattern,
+    Room,
+    Skill,
+    SkillIntent,
+)
 from private_assistant_commons.messages import Alert, ClientRequest, Response
 from private_assistant_commons.metrics import MetricsCollector
 from private_assistant_commons.skill_context import ConfidenceModifier, SkillContext
@@ -172,6 +179,7 @@ class BaseSkill(ABC):
         # Auto-register skill and device types
         await self.ensure_skill_registered()
         await self.ensure_device_types_registered()
+        await self.ensure_intents_registered()
 
         # Load initial device cache on startup
         self.global_devices = await self.get_skill_devices()
@@ -653,11 +661,14 @@ class BaseSkill(ABC):
         return self._global_skill_id  # type: ignore[return-value]
 
     # AIDEV-NOTE: Device Registry Methods - All skills participate in global device registry
-    async def ensure_skill_registered(self) -> None:
-        """Ensure this skill is registered in the database (idempotent).
+    async def ensure_skill_registered(self, help_text: str | None = None) -> None:
+        """Ensure this skill is registered in the database with optional help text (idempotent).
 
         Registers the skill if it doesn't exist and caches its UUID for subsequent operations.
         This method is called automatically during skill_preparations().
+
+        Args:
+            help_text: Optional description of skill capabilities for help system
 
         Raises:
             RuntimeError: If database operation fails
@@ -665,7 +676,7 @@ class BaseSkill(ABC):
         """
         try:
             async with AsyncSession(self.engine) as session:
-                skill = await Skill.ensure_exists(session, self.config_obj.skill_id)
+                skill = await Skill.ensure_exists(session, self.config_obj.skill_id, help_text=help_text)
                 self._global_skill_id = skill.id
                 self.logger.info("Skill registered in database: %s (UUID: %s)", skill.name, skill.id)
         except Exception as e:
@@ -694,6 +705,71 @@ class BaseSkill(ABC):
         except Exception as e:
             self.logger.error("Failed to register device types: %s", e, exc_info=True)
             raise RuntimeError(f"Device type registration failed: {e}") from e
+
+    async def ensure_intents_registered(self) -> None:
+        """Sync self.supported_intents to database (idempotent).
+
+        Synchronizes the in-memory supported_intents dict to the database
+        for introspection. Creates missing IntentPattern entries if needed
+        and links them to this skill via SkillIntent junction table.
+
+        This maintains the database as a reflection of the skill's declared
+        capabilities while keeping runtime performance optimal (in-memory lookups).
+
+        Raises:
+            RuntimeError: If database operation fails
+
+        """
+        if not self.supported_intents:
+            self.logger.debug("No intents to register")
+            return
+
+        try:
+            async with AsyncSession(self.engine) as session:
+                skill_id = await self.global_skill_id
+
+                # Sync declared intents to database
+                for intent_type in self.supported_intents:
+                    intent_str = intent_type.value
+
+                    # Find or create IntentPattern
+                    pattern_statement = select(IntentPattern).where(IntentPattern.intent_type == intent_str)
+                    pattern_result = await session.exec(pattern_statement)
+                    intent_pattern = pattern_result.first()
+
+                    if intent_pattern is None:
+                        # Create new IntentPattern if it doesn't exist
+                        intent_pattern = IntentPattern(intent_type=intent_str, enabled=True, priority=0)
+                        session.add(intent_pattern)
+                        await session.commit()
+                        await session.refresh(intent_pattern)
+                        self.logger.info("Created IntentPattern: %s", intent_str)
+
+                    # Link skill to intent via SkillIntent
+                    await SkillIntent.upsert(session, skill_id, intent_pattern.id)
+
+                # Remove stale intents (no longer in supported_intents)
+                # Get all SkillIntent records with their intent_patterns loaded
+                existing_statement = select(SkillIntent).where(SkillIntent.skill_id == skill_id)
+                existing_result = await session.exec(existing_statement)
+                existing_skill_intents = existing_result.all()
+
+                declared_intent_types = {it.value for it in self.supported_intents}
+
+                for skill_intent in existing_skill_intents:
+                    # Load the intent_pattern to get intent_type
+                    pattern_statement = select(IntentPattern).where(IntentPattern.id == skill_intent.intent_pattern_id)
+                    pattern_result = await session.exec(pattern_statement)
+                    pattern = pattern_result.first()
+
+                    if pattern and pattern.intent_type not in declared_intent_types:
+                        await session.delete(skill_intent)
+                        await session.commit()
+                        self.logger.info("Removed stale intent registration: %s", pattern.intent_type)
+
+        except Exception as e:
+            self.logger.error("Failed to register intents: %s", e, exc_info=True)
+            raise RuntimeError(f"Intent registration failed: {e}") from e
 
     async def register_device(
         self,

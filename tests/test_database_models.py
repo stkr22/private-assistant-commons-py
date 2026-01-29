@@ -12,6 +12,8 @@ from private_assistant_commons.database import (
     IntentPattern,
     IntentPatternHint,
     IntentPatternKeyword,
+    Skill,
+    SkillIntent,
 )
 
 
@@ -20,13 +22,15 @@ async def engine():
     """Create an in-memory SQLite database engine for testing."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
 
-    # Create only the intent pattern tables (skip models with ARRAY types)
+    # Create intent pattern and skill tables (skip models with ARRAY types)
     async with engine.begin() as conn:
-        # Get table objects for just the intent pattern models
+        # Get table objects for the intent pattern and skill models
         tables = [
             IntentPattern.__table__,
             IntentPatternKeyword.__table__,
             IntentPatternHint.__table__,
+            Skill.__table__,
+            SkillIntent.__table__,
         ]
         # Create only these specific tables
         await conn.run_sync(lambda sync_conn: IntentPattern.metadata.create_all(sync_conn, tables=tables))

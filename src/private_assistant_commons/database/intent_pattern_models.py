@@ -41,9 +41,13 @@ Example:
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from .skill_models import SkillIntent
 
 
 class IntentPattern(SQLModel, table=True):
@@ -80,6 +84,7 @@ class IntentPattern(SQLModel, table=True):
     hints: list["IntentPatternHint"] = Relationship(
         back_populates="pattern", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
+    skill_intents: list["SkillIntent"] = Relationship(back_populates="intent_pattern")
 
 
 class IntentPatternKeyword(SQLModel, table=True):
