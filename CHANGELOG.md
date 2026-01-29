@@ -4,6 +4,20 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [6.2.0](https://github.com/stkr22/private-assistant-commons-py/compare/v6.1.0...v6.2.0) (2026-01-29)
+
+
+### Features
+
+* :card_file_box: add help_text and intent tracking to skill registration ([feafa32](https://github.com/stkr22/private-assistant-commons-py/commit/feafa32c33c236bca1c3b53bcb3b4ccdb22ff2fc))
+* :card_file_box: add regex support to keywords and remove hints table ([c9e4a65](https://github.com/stkr22/private-assistant-commons-py/commit/c9e4a65c3c8317bb6d3893c333ed74ed306e55bc))
+* :card_file_box: add regex support to keywords and remove hints table ([68ae4ea](https://github.com/stkr22/private-assistant-commons-py/commit/68ae4ea4e61a623644d9ccccb4b709549d1fc1d0))
+
+
+### Documentation
+
+* :card_file_box: add PostgreSQL migration scripts for skill help text and intent tracking ([9c18cc0](https://github.com/stkr22/private-assistant-commons-py/commit/9c18cc02f024ea40b9bfa2eb4ef9b0eca4b0c6b3))
+
 ## [6.1.0](https://github.com/stkr22/private-assistant-commons-py/compare/v6.0.0...v6.1.0) (2026-01-28)
 
 
