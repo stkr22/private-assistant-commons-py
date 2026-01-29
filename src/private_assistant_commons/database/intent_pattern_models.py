@@ -5,8 +5,7 @@ configurations that replace hardcoded pattern matching in the intent engine.
 
 The intent pattern system consists of:
 - IntentPattern: Core pattern configuration for identifying intent types
-- IntentPatternKeyword: Primary and negative keywords for pattern matching
-- IntentPatternHint: Context hints for confidence boosting
+- IntentPatternKeyword: Primary and negative keywords for pattern matching (supports regex)
 
 Intent patterns are loaded from the database by the intent-engine and can be
 refreshed via MQTT messages, enabling dynamic pattern management without code changes.
@@ -15,7 +14,6 @@ Example:
     from private_assistant_commons.database import (
         IntentPattern,
         IntentPatternKeyword,
-        IntentPatternHint,
     )
 
     # Create a pattern for DEVICE_ON intent
@@ -28,14 +26,18 @@ Example:
 
     # Add primary keywords
     keywords = [
-        IntentPatternKeyword(pattern_id=pattern.id, keyword="turn on", keyword_type="primary"),
-        IntentPatternKeyword(pattern_id=pattern.id, keyword="switch on", keyword_type="primary"),
-    ]
-
-    # Add context hints
-    hints = [
-        IntentPatternHint(pattern_id=pattern.id, hint="light"),
-        IntentPatternHint(pattern_id=pattern.id, hint="lamp"),
+        IntentPatternKeyword(
+            pattern_id=pattern.id,
+            keyword="turn on",
+            keyword_type="primary",
+            is_regex=False
+        ),
+        IntentPatternKeyword(
+            pattern_id=pattern.id,
+            keyword=r"switch (on|off)",
+            keyword_type="primary",
+            is_regex=True
+        ),
     ]
 
 """
@@ -81,9 +83,6 @@ class IntentPattern(SQLModel, table=True):
     keywords: list["IntentPatternKeyword"] = Relationship(
         back_populates="pattern", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
-    hints: list["IntentPatternHint"] = Relationship(
-        back_populates="pattern", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
-    )
     skill_intents: list["SkillIntent"] = Relationship(back_populates="intent_pattern")
 
 
@@ -93,12 +92,14 @@ class IntentPatternKeyword(SQLModel, table=True):
     Primary matching keywords (e.g., "turn on", "switch off").
     At least one keyword must be present for a valid pattern.
     Includes both primary and negative keywords via keyword_type field.
+    Supports both literal strings and regex patterns via is_regex field.
 
     Attributes:
         id: Unique identifier
         pattern_id: Foreign key to intent_pattern
-        keyword: The matching keyword (stored lowercase)
+        keyword: The matching keyword (stored lowercase) or regex pattern
         keyword_type: Type of keyword (primary/negative)
+        is_regex: Whether the keyword should be treated as a regex pattern
         weight: Optional weight for confidence scoring (future use)
         created_at: Timestamp when the keyword was created
 
@@ -110,35 +111,9 @@ class IntentPatternKeyword(SQLModel, table=True):
     pattern_id: UUID = Field(foreign_key="intent_patterns.id", index=True)
     keyword: str = Field(index=True)
     keyword_type: str = Field(default="primary", index=True)
+    is_regex: bool = Field(default=False, index=True)
     weight: float = Field(default=1.0)
     created_at: datetime = Field(default_factory=datetime.now)
 
     # Relationships
     pattern: IntentPattern = Relationship(back_populates="keywords")
-
-
-class IntentPatternHint(SQLModel, table=True):
-    """Context hints for intent pattern confidence boosting.
-
-    Supporting words that strengthen intent confidence when present
-    (e.g., "light", "lamp", "device" for DEVICE_ON).
-
-    Attributes:
-        id: Unique identifier
-        pattern_id: Foreign key to intent_pattern
-        hint: The context hint (stored lowercase)
-        weight: Optional weight for confidence scoring (future use)
-        created_at: Timestamp when the hint was created
-
-    """
-
-    __tablename__ = "intent_pattern_hints"
-
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    pattern_id: UUID = Field(foreign_key="intent_patterns.id", index=True)
-    hint: str = Field(index=True)
-    weight: float = Field(default=1.0)
-    created_at: datetime = Field(default_factory=datetime.now)
-
-    # Relationships
-    pattern: IntentPattern = Relationship(back_populates="hints")

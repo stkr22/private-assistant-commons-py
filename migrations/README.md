@@ -16,6 +16,19 @@ This directory contains SQL migration scripts for the Private Assistant Commons 
 
 **Rollback:** Use `001_add_skill_help_text_and_intents_rollback.sql`
 
+### 002_add_is_regex_remove_hints.sql
+
+**Purpose:** Add regex support to keywords and remove hints table
+
+**Changes:**
+- Adds `is_regex` column to `intent_pattern_keywords` table (BOOLEAN, default FALSE)
+- Adds index on `is_regex` column for query performance
+- Drops `intent_pattern_hints` table completely (CASCADE)
+
+**Rollback:** Use `002_add_is_regex_remove_hints_rollback.sql`
+
+**Warning:** Rollback recreates hints table structure but cannot restore data
+
 ## Applying Migrations
 
 ### Manual Application
