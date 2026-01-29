@@ -10,8 +10,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from private_assistant_commons.database import (
     IntentPattern,
-    IntentPatternHint,
     IntentPatternKeyword,
+    Skill,
+    SkillIntent,
 )
 
 
@@ -20,13 +21,14 @@ async def engine():
     """Create an in-memory SQLite database engine for testing."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
 
-    # Create only the intent pattern tables (skip models with ARRAY types)
+    # Create intent pattern and skill tables (skip models with ARRAY types)
     async with engine.begin() as conn:
-        # Get table objects for just the intent pattern models
+        # Get table objects for the intent pattern and skill models
         tables = [
             IntentPattern.__table__,
             IntentPatternKeyword.__table__,
-            IntentPatternHint.__table__,
+            Skill.__table__,
+            SkillIntent.__table__,
         ]
         # Create only these specific tables
         await conn.run_sync(lambda sync_conn: IntentPattern.metadata.create_all(sync_conn, tables=tables))
@@ -84,7 +86,7 @@ class TestIntentPattern:
         assert pattern.description == "Turn off devices"
 
     async def test_intent_pattern_with_relationships(self, session: AsyncSession):
-        """Test intent pattern with keywords and hints relationships."""
+        """Test intent pattern with keywords relationships."""
         pattern = IntentPattern(intent_type="device.on", description="Turn on devices")
         session.add(pattern)
         await session.commit()
@@ -96,24 +98,16 @@ class TestIntentPattern:
         keyword3 = IntentPatternKeyword(pattern_id=pattern.id, keyword="off", keyword_type="negative")
         session.add_all([keyword1, keyword2, keyword3])
 
-        # Add hints
-        hint1 = IntentPatternHint(pattern_id=pattern.id, hint="light")
-        hint2 = IntentPatternHint(pattern_id=pattern.id, hint="lamp")
-        session.add_all([hint1, hint2])
-
         await session.commit()
 
         # Reload pattern with relationships
         result = await session.exec(
-            select(IntentPattern)
-            .where(IntentPattern.id == pattern.id)
-            .options(selectinload(IntentPattern.keywords), selectinload(IntentPattern.hints))  # type: ignore[arg-type]
+            select(IntentPattern).where(IntentPattern.id == pattern.id).options(selectinload(IntentPattern.keywords))  # type: ignore[arg-type]
         )
         pattern = result.one()
 
         # Verify relationships
         assert len(pattern.keywords) == 3
-        assert len(pattern.hints) == 2
 
         # Verify keyword types
         primary_keywords = [kw for kw in pattern.keywords if kw.keyword_type == "primary"]
@@ -122,41 +116,34 @@ class TestIntentPattern:
         assert len(negative_keywords) == 1
 
     async def test_intent_pattern_cascade_delete(self, session: AsyncSession):
-        """Test that deleting a pattern cascades to keywords and hints."""
+        """Test that deleting a pattern cascades to keywords."""
         pattern = IntentPattern(intent_type="device.on")
         session.add(pattern)
         await session.commit()
         await session.refresh(pattern)
 
-        # Add keywords and hints
+        # Add keywords
         keyword = IntentPatternKeyword(pattern_id=pattern.id, keyword="turn on")
-        hint = IntentPatternHint(pattern_id=pattern.id, hint="light")
-        session.add_all([keyword, hint])
+        session.add(keyword)
         await session.commit()
 
         pattern_id = pattern.id
 
-        # Verify they exist
+        # Verify keyword exists
         kw_result = await session.exec(
             select(IntentPatternKeyword).where(IntentPatternKeyword.pattern_id == pattern_id)
         )
         assert len(list(kw_result.all())) == 1
 
-        hint_result = await session.exec(select(IntentPatternHint).where(IntentPatternHint.pattern_id == pattern_id))
-        assert len(list(hint_result.all())) == 1
-
         # Delete the pattern
         await session.delete(pattern)
         await session.commit()
 
-        # Verify keywords and hints are deleted
+        # Verify keywords are deleted
         kw_result = await session.exec(
             select(IntentPatternKeyword).where(IntentPatternKeyword.pattern_id == pattern_id)
         )
         assert len(list(kw_result.all())) == 0
-
-        hint_result = await session.exec(select(IntentPatternHint).where(IntentPatternHint.pattern_id == pattern_id))
-        assert len(list(hint_result.all())) == 0
 
     async def test_intent_pattern_query_by_enabled(self, session: AsyncSession):
         """Test querying patterns by enabled status."""
@@ -199,6 +186,7 @@ class TestIntentPatternKeyword:
         assert keyword.pattern_id == pattern.id
         assert keyword.keyword == "turn on"
         assert keyword.keyword_type == "primary"
+        assert keyword.is_regex is False
         assert keyword.weight == 1.0
         assert keyword.created_at is not None
 
@@ -267,89 +255,40 @@ class TestIntentPatternKeyword:
         assert len(negative_keywords) == 1
         assert negative_keywords[0].keyword == "off"
 
-
-class TestIntentPatternHint:
-    """Test IntentPatternHint model."""
-
-    async def test_hint_creation_minimal(self, session: AsyncSession):
-        """Test creating a hint with minimal required fields."""
+    async def test_keyword_with_regex(self, session: AsyncSession):
+        """Test creating keywords with regex patterns."""
         pattern = IntentPattern(intent_type="device.on")
         session.add(pattern)
         await session.commit()
         await session.refresh(pattern)
 
-        hint = IntentPatternHint(pattern_id=pattern.id, hint="light")
-        session.add(hint)
-        await session.commit()
-        await session.refresh(hint)
+        # Add literal keyword
+        literal_kw = IntentPatternKeyword(
+            pattern_id=pattern.id, keyword="turn on", keyword_type="primary", is_regex=False
+        )
 
-        assert hint.id is not None
-        assert isinstance(hint.id, uuid.UUID)
-        assert hint.pattern_id == pattern.id
-        assert hint.hint == "light"
-        assert hint.weight == 1.0
-        assert hint.created_at is not None
+        # Add regex keyword
+        regex_kw = IntentPatternKeyword(
+            pattern_id=pattern.id, keyword=r"switch (on|off)", keyword_type="primary", is_regex=True
+        )
 
-    async def test_hint_creation_full(self, session: AsyncSession):
-        """Test creating a hint with all fields."""
-        pattern = IntentPattern(intent_type="device.on")
-        session.add(pattern)
-        await session.commit()
-        await session.refresh(pattern)
-
-        hint_id = uuid.uuid4()
-        hint = IntentPatternHint(id=hint_id, pattern_id=pattern.id, hint="lamp", weight=1.5)
-        session.add(hint)
-        await session.commit()
-        await session.refresh(hint)
-
-        assert hint.id == hint_id
-        assert hint.hint == "lamp"
-        assert hint.weight == 1.5
-
-    async def test_hint_relationship(self, session: AsyncSession):
-        """Test hint relationship with pattern."""
-        pattern = IntentPattern(intent_type="device.on")
-        session.add(pattern)
-        await session.commit()
-        await session.refresh(pattern)
-
-        hint = IntentPatternHint(pattern_id=pattern.id, hint="light")
-        session.add(hint)
-        await session.commit()
-        await session.refresh(hint)
-
-        # Access pattern from hint
-        assert hint.pattern.id == pattern.id
-        assert hint.pattern.intent_type == "device.on"
-
-    async def test_query_hints_by_pattern(self, session: AsyncSession):
-        """Test querying hints for a specific pattern."""
-        pattern1 = IntentPattern(intent_type="device.on")
-        pattern2 = IntentPattern(intent_type="device.off")
-        session.add_all([pattern1, pattern2])
-        await session.commit()
-        await session.refresh(pattern1)
-        await session.refresh(pattern2)
-
-        # Add hints to different patterns
-        hint1 = IntentPatternHint(pattern_id=pattern1.id, hint="light")
-        hint2 = IntentPatternHint(pattern_id=pattern1.id, hint="lamp")
-        hint3 = IntentPatternHint(pattern_id=pattern2.id, hint="device")
-        session.add_all([hint1, hint2, hint3])
+        session.add_all([literal_kw, regex_kw])
         await session.commit()
 
-        # Query hints for pattern1
-        result = await session.exec(select(IntentPatternHint).where(IntentPatternHint.pattern_id == pattern1.id))
-        pattern1_hints = list(result.all())
-        assert len(pattern1_hints) == 2
-        assert {h.hint for h in pattern1_hints} == {"light", "lamp"}
+        # Query all keywords
+        result = await session.exec(select(IntentPatternKeyword).where(IntentPatternKeyword.pattern_id == pattern.id))
+        keywords = list(result.all())
+        assert len(keywords) == 2
 
-        # Query hints for pattern2
-        result = await session.exec(select(IntentPatternHint).where(IntentPatternHint.pattern_id == pattern2.id))
-        pattern2_hints = list(result.all())
-        assert len(pattern2_hints) == 1
-        assert pattern2_hints[0].hint == "device"
+        # Verify is_regex flags
+        literal_keywords = [kw for kw in keywords if not kw.is_regex]
+        regex_keywords = [kw for kw in keywords if kw.is_regex]
+
+        assert len(literal_keywords) == 1
+        assert literal_keywords[0].keyword == "turn on"
+
+        assert len(regex_keywords) == 1
+        assert regex_keywords[0].keyword == r"switch (on|off)"
 
 
 class TestIntentPatternUsageExample:
@@ -357,7 +296,7 @@ class TestIntentPatternUsageExample:
 
     async def test_load_patterns_from_database(self, session: AsyncSession):
         """Test loading patterns as shown in the example usage."""
-        # Create patterns with keywords and hints
+        # Create patterns with keywords
         pattern1 = IntentPattern(intent_type="device.on", enabled=True, priority=10, description="Turn on devices")
         pattern2 = IntentPattern(intent_type="device.off", enabled=True, priority=5, description="Turn off devices")
         pattern3 = IntentPattern(intent_type="device.set", enabled=False, priority=0, description="Set device state")
@@ -368,23 +307,16 @@ class TestIntentPatternUsageExample:
         await session.refresh(pattern3)
 
         # Add keywords to pattern1
-        kw1 = IntentPatternKeyword(pattern_id=pattern1.id, keyword="turn on", keyword_type="primary")
-        kw2 = IntentPatternKeyword(pattern_id=pattern1.id, keyword="switch on", keyword_type="primary")
-        kw3 = IntentPatternKeyword(pattern_id=pattern1.id, keyword="off", keyword_type="negative")
+        kw1 = IntentPatternKeyword(pattern_id=pattern1.id, keyword="turn on", keyword_type="primary", is_regex=False)
+        kw2 = IntentPatternKeyword(pattern_id=pattern1.id, keyword="switch on", keyword_type="primary", is_regex=False)
+        kw3 = IntentPatternKeyword(pattern_id=pattern1.id, keyword="off", keyword_type="negative", is_regex=False)
         session.add_all([kw1, kw2, kw3])
-
-        # Add hints to pattern1
-        hint1 = IntentPatternHint(pattern_id=pattern1.id, hint="light")
-        hint2 = IntentPatternHint(pattern_id=pattern1.id, hint="lamp")
-        session.add_all([hint1, hint2])
 
         await session.commit()
 
         # Load patterns from database (example usage)
         result = await session.exec(
-            select(IntentPattern)
-            .where(IntentPattern.enabled)
-            .options(selectinload(IntentPattern.keywords), selectinload(IntentPattern.hints))  # type: ignore[arg-type]
+            select(IntentPattern).where(IntentPattern.enabled).options(selectinload(IntentPattern.keywords))  # type: ignore[arg-type]
         )
         db_patterns = list(result.all())
 
@@ -397,8 +329,6 @@ class TestIntentPatternUsageExample:
             if db_pattern.intent_type == "device.on":
                 primary_keywords = [kw.keyword for kw in db_pattern.keywords if kw.keyword_type == "primary"]
                 negative_keywords = [kw.keyword for kw in db_pattern.keywords if kw.keyword_type == "negative"]
-                context_hints = [hint.hint for hint in db_pattern.hints]
 
                 assert set(primary_keywords) == {"turn on", "switch on"}
                 assert negative_keywords == ["off"]
-                assert set(context_hints) == {"light", "lamp"}

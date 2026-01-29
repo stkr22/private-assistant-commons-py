@@ -5,7 +5,6 @@ that enables pattern-based device matching across all skills in the Private Assi
 
 The registry consists of device-related entities:
 - Room: Physical locations where devices are placed
-- Skill: Skills that own and manage devices
 - DeviceType: Types of devices (e.g., light, switch, media_player)
 - GlobalDevice: Devices registered in the global registry with pattern matching support
 
@@ -19,7 +18,7 @@ Example:
     # Create a room
     bedroom = Room(name="bedroom")
 
-    # Create a skill
+    # Create a skill (imported from skill_models)
     switch_skill = Skill(name="switch-skill")
 
     # Create a device type
@@ -37,11 +36,14 @@ Example:
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import ARRAY, JSON, Column, String
 from sqlmodel import Field, Relationship, SQLModel, select
+
+if TYPE_CHECKING:
+    from .skill_models import Skill
 
 
 class Room(SQLModel, table=True):
@@ -82,67 +84,6 @@ class Room(SQLModel, table=True):
         """
         result = await session.exec(select(cls).where(cls.name == name))
         return result.first()  # type: ignore[no-any-return]
-
-
-class Skill(SQLModel, table=True):
-    """Skill model for tracking which skill owns each device.
-
-    Skills are components that manage specific types of devices (e.g., switch-skill,
-    media-skill). Each device must be associated with exactly one skill that handles
-    its operations.
-
-    Attributes:
-        id: Unique identifier for the skill
-        name: Unique skill name (e.g., "switch-skill", "media-skill")
-        created_at: Timestamp when the skill was registered
-        updated_at: Timestamp when the skill was last modified
-
-    """
-
-    __tablename__ = "skills"
-
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
-    name: str = Field(unique=True, index=True)
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
-
-    # Relationships
-    devices: list["GlobalDevice"] = Relationship(back_populates="skill")
-
-    @classmethod
-    async def get_by_name(cls, session, name: str) -> "Skill | None":
-        """Find skill by name.
-
-        Args:
-            session: AsyncSession for database operations
-            name: Skill name to search for
-
-        Returns:
-            Skill instance if found, None otherwise
-
-        """
-        result = await session.exec(select(cls).where(cls.name == name))
-        return result.first()  # type: ignore[no-any-return]
-
-    @classmethod
-    async def ensure_exists(cls, session, name: str) -> "Skill":
-        """Ensure skill exists in database, creating if necessary (idempotent).
-
-        Args:
-            session: AsyncSession for database operations
-            name: Skill name to ensure exists
-
-        Returns:
-            Skill instance (existing or newly created)
-
-        """
-        skill = await cls.get_by_name(session, name)
-        if skill is None:
-            skill = cls(name=name)
-            session.add(skill)
-            await session.commit()
-            await session.refresh(skill)
-        return skill
 
 
 class DeviceType(SQLModel, table=True):
@@ -261,4 +202,4 @@ class GlobalDevice(SQLModel, table=True):
     # Relationships
     device_type: DeviceType = Relationship(back_populates="devices")
     room: Room = Relationship(back_populates="devices")
-    skill: Skill = Relationship(back_populates="devices")
+    skill: "Skill" = Relationship(back_populates="devices")
