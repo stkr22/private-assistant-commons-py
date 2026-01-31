@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from private_assistant_commons import intent, skill_config
 from private_assistant_commons.base_skill import BaseSkill
+from private_assistant_commons.database import Skill
 from private_assistant_commons.messages import Alert, ClientRequest, Response
 
 
@@ -27,6 +28,23 @@ class ConcreteTestSkill(BaseSkill):
         """Skip database initialization in tests."""
         # Override to prevent database operations during tests
         # Database operations should be tested separately in database-specific tests
+
+
+# Concrete subclass with help text for testing help text functionality
+class SkillWithHelpText(BaseSkill):
+    help_text = "Test skill with help text for unit testing"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.supported_intents = {
+            intent.IntentType.DEVICE_ON: 0.8,
+        }
+
+    async def process_request(self, intent_request: intent.IntentRequest) -> None:
+        pass
+
+    async def skill_preparations(self) -> None:
+        """Skip database initialization in tests."""
 
 
 class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
@@ -212,3 +230,88 @@ class TestBaseSkill(unittest.IsolatedAsyncioTestCase):
             qos=1,
             retain=False,
         )
+
+    async def test_help_text_class_attribute(self):
+        """Test that help_text class attribute is accessible."""
+        # Skill without help text should have None
+        self.assertIsNone(ConcreteTestSkill.help_text)
+        self.assertIsNone(self.skill.help_text)
+
+        # Skill with help text should have the defined value
+        self.assertEqual(SkillWithHelpText.help_text, "Test skill with help text for unit testing")
+
+        # Create an instance and verify the help text is accessible
+        skill_with_help = SkillWithHelpText(
+            config_obj=self.mock_config,
+            mqtt_client=self.mock_mqtt_client,
+            task_group=self.task_group,
+            engine=self.engine_async,
+            logger=self.mock_logger,
+        )
+        self.assertEqual(skill_with_help.help_text, "Test skill with help text for unit testing")
+
+    async def test_ensure_skill_registered_uses_class_help_text(self):
+        """Test that ensure_skill_registered uses class-level help_text when no explicit help_text is provided."""
+        skill_with_help = SkillWithHelpText(
+            config_obj=self.mock_config,
+            mqtt_client=self.mock_mqtt_client,
+            task_group=self.task_group,
+            engine=self.engine_async,
+            logger=self.mock_logger,
+        )
+
+        # Mock Skill.ensure_exists to capture the arguments
+        with patch.object(Skill, "ensure_exists", new_callable=AsyncMock) as mock_ensure_exists:
+            mock_skill = Mock()
+            mock_skill.id = uuid.uuid4()
+            mock_ensure_exists.return_value = mock_skill
+
+            # Call ensure_skill_registered without explicit help_text
+            await skill_with_help.ensure_skill_registered()
+
+            # Verify that Skill.ensure_exists was called with the class-level help_text
+            mock_ensure_exists.assert_called_once()
+            call_args = mock_ensure_exists.call_args
+            # The third argument should be help_text
+            self.assertEqual(call_args.kwargs.get("help_text"), "Test skill with help text for unit testing")
+
+    async def test_ensure_skill_registered_explicit_help_text_overrides(self):
+        """Test that explicit help_text parameter overrides class-level help_text."""
+        skill_with_help = SkillWithHelpText(
+            config_obj=self.mock_config,
+            mqtt_client=self.mock_mqtt_client,
+            task_group=self.task_group,
+            engine=self.engine_async,
+            logger=self.mock_logger,
+        )
+
+        # Mock Skill.ensure_exists to capture the arguments
+        with patch.object(Skill, "ensure_exists", new_callable=AsyncMock) as mock_ensure_exists:
+            mock_skill = Mock()
+            mock_skill.id = uuid.uuid4()
+            mock_ensure_exists.return_value = mock_skill
+
+            # Call ensure_skill_registered with explicit help_text
+            explicit_help = "Override help text"
+            await skill_with_help.ensure_skill_registered(help_text=explicit_help)
+
+            # Verify that Skill.ensure_exists was called with the explicit help_text
+            mock_ensure_exists.assert_called_once()
+            call_args = mock_ensure_exists.call_args
+            self.assertEqual(call_args.kwargs.get("help_text"), explicit_help)
+
+    async def test_ensure_skill_registered_no_help_text(self):
+        """Test that ensure_skill_registered works with skills that have no help_text (backwards compatibility)."""
+        # Mock Skill.ensure_exists to capture the arguments
+        with patch.object(Skill, "ensure_exists", new_callable=AsyncMock) as mock_ensure_exists:
+            mock_skill = Mock()
+            mock_skill.id = uuid.uuid4()
+            mock_ensure_exists.return_value = mock_skill
+
+            # Call ensure_skill_registered without explicit help_text on a skill without class-level help_text
+            await self.skill.ensure_skill_registered()
+
+            # Verify that Skill.ensure_exists was called with None for help_text
+            mock_ensure_exists.assert_called_once()
+            call_args = mock_ensure_exists.call_args
+            self.assertEqual(call_args.kwargs.get("help_text"), None)

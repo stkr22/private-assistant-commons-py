@@ -19,6 +19,9 @@ from private_assistant_commons import (
 )
 
 class LightControlSkill(BaseSkill):
+    # Set help text at class level - appears in skill registry for help system
+    help_text = "Controls smart lights - turn on/off, adjust brightness, and set colors"
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -79,6 +82,68 @@ class LightControlSkill(BaseSkill):
 
         # Send response back to the user
         await self.send_response(response_text, client_request)
+```
+
+### Skill Configuration
+
+Skills configure themselves through a combination of class attributes and instance attributes:
+
+#### Help Text (Class Attribute)
+
+Provide a description of your skill's capabilities for the help system:
+
+```python
+class LightControlSkill(BaseSkill):
+    help_text = "Controls smart lights - turn on/off, adjust brightness, and set colors"
+```
+
+This text is automatically registered in the database when the skill starts and can be used by help/discovery features. Since help text is constant for all instances of a skill, it's defined as a class attribute.
+
+#### Supported Intents (Instance Attribute)
+
+Configure which intents your skill handles and their confidence thresholds in `__init__`:
+
+```python
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    self.supported_intents = {
+        IntentType.DEVICE_ON: 0.8,
+        IntentType.DEVICE_OFF: 0.8,
+    }
+```
+
+#### Supported Device Types (Instance Attribute)
+
+Declare which device types your skill manages:
+
+```python
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    self.supported_device_types = ["light", "switch", "dimmer"]
+```
+
+These device types are automatically registered in the database during `skill_preparations()`.
+
+#### Confidence Modifiers (Instance Attribute)
+
+Define context-aware threshold adjustments for natural conversation flow:
+
+```python
+def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+
+    self.confidence_modifiers = {
+        IntentType.DEVICE_OFF: [
+            ConfidenceModifier(
+                trigger_intent=IntentType.DEVICE_ON,
+                lowers_threshold_for=IntentType.DEVICE_OFF,
+                reduced_threshold=0.5,
+                time_window_seconds=300,
+            ),
+        ],
+    }
 ```
 
 ### Running a Skill

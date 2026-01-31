@@ -56,6 +56,9 @@ class BaseSkill(ABC):
     - Location awareness: Supports room-based command routing
     """
 
+    # AIDEV-NOTE: Class-level configuration - skills can override this to provide help text
+    help_text: str | None = None  # Description of skill capabilities for help system
+
     class MqttErrorType(Enum):
         """Categorize MQTT errors for better handling and recovery."""
 
@@ -668,15 +671,19 @@ class BaseSkill(ABC):
         This method is called automatically during skill_preparations().
 
         Args:
-            help_text: Optional description of skill capabilities for help system
+            help_text: Optional description of skill capabilities for help system.
+                       If None, uses the class attribute self.help_text.
 
         Raises:
             RuntimeError: If database operation fails
 
         """
+        # Use provided help_text, or fall back to class attribute
+        effective_help_text = help_text if help_text is not None else self.help_text
+
         try:
             async with AsyncSession(self.engine) as session:
-                skill = await Skill.ensure_exists(session, self.config_obj.skill_id, help_text=help_text)
+                skill = await Skill.ensure_exists(session, self.config_obj.skill_id, help_text=effective_help_text)
                 self._global_skill_id = skill.id
                 self.logger.info("Skill registered in database: %s (UUID: %s)", skill.name, skill.id)
         except Exception as e:
