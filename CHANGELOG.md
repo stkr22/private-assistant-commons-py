@@ -4,6 +4,14 @@
 
 - enhance MQTT error handling and task lifecycle management
 
+## [6.3.0](https://github.com/stkr22/private-assistant-commons-py/compare/v6.2.0...v6.3.0) (2026-01-31)
+
+
+### Features
+
+* :sparkles: add class attribute for skill help text ([82404c0](https://github.com/stkr22/private-assistant-commons-py/commit/82404c0c07cfb2ccc82123cdc0683c5b0ac2d7ef))
+* :sparkles: add class attribute for skill help text ([c291a17](https://github.com/stkr22/private-assistant-commons-py/commit/c291a1749e12ad23f38578f820a6945459971c22))
+
 ## [6.2.0](https://github.com/stkr22/private-assistant-commons-py/compare/v6.1.0...v6.2.0) (2026-01-29)
 
 
