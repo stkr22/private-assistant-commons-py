@@ -100,6 +100,24 @@ def add_task(self, coro) -> asyncio.Task:
 ```
 Add a coroutine as a new task to the skill's task group for concurrent execution.
 
+#### Class Attributes
+
+- **help_text** (`str | None`): Class-level attribute for skill help text. Override in subclasses to provide a description of the skill's capabilities for the help system. Automatically registered in the database during `skill_preparations()`. Defaults to `None`.
+
+**Example:**
+```python
+class LightControlSkill(BaseSkill):
+    help_text = "Controls smart lights - turn on/off, adjust brightness, and set colors"
+```
+
+#### Instance Attributes (Configure in `__init__`)
+
+- **supported_intents** (`dict[IntentType, float]`): Map of supported intent types to their minimum confidence thresholds. Set this in your skill's `__init__` method after calling `super().__init__()`.
+
+- **supported_device_types** (`list[str]`): List of device type names this skill supports (e.g., `["light", "switch"]`). Automatically registered in the database during `skill_preparations()`.
+
+- **confidence_modifiers** (`dict[IntentType, list[ConfidenceModifier]]`): Map of target intents to their confidence modifiers for context-aware threshold adjustments.
+
 #### Properties
 - **config_obj** (`SkillConfig`): Skill configuration
 - **mqtt_client** (`aiomqtt.Client`): MQTT client instance
